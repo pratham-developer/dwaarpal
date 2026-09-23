@@ -3,20 +3,30 @@ package redis
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
 
 // Client wraps the Redis client.
 type Client struct {
-	Rdb *redis.Client
+	Rdb redis.UniversalClient
 }
 
 // NewClient initializes and returns a new Redis client.
 func NewClient(addr string) (*Client, error) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: addr,
-	})
+	var rdb redis.UniversalClient
+
+	if strings.Contains(addr, ",") {
+		addrs := strings.Split(addr, ",")
+		rdb = redis.NewClusterClient(&redis.ClusterOptions{
+			Addrs: addrs,
+		})
+	} else {
+		rdb = redis.NewClient(&redis.Options{
+			Addr: addr,
+		})
+	}
 
 	// Ping the Redis server to verify connection.
 	if err := rdb.Ping(context.Background()).Err(); err != nil {

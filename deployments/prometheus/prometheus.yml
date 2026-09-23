@@ -4,5 +4,5 @@ global:
 scrape_configs:
   - job_name: 'dwaarpal'
     static_configs:
-      # Use host.docker.internal to reach the Go server running on the host machine
-      - targets: ['host.docker.internal:8080']
+      # Scrape the API container running in the same docker-compose network
+      - targets: ['api:8080']

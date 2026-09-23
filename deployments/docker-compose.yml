@@ -1,14 +1,29 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: dwaarpal-redis
+  # A 6-node Redis Cluster (3 Masters, 3 Replicas) inside a single container for local testing.
+  # Masters: 7000, 7001, 7002. Replicas: 7003, 7004, 7005
+  api:
+    build: .
+    container_name: dwaarpal-api
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - REDIS_ADDRESS=redis-cluster:7000,redis-cluster:7001,redis-cluster:7002,redis-cluster:7003,redis-cluster:7004,redis-cluster:7005
+    depends_on:
+      - redis-cluster
+
+  redis-cluster:
+    image: grokzen/redis-cluster:latest
+    container_name: dwaarpal-redis-cluster
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7002:7002"
+      - "7003:7003"
+      - "7004:7004"
+      - "7005:7005"
 
   prometheus:
     image: prom/prometheus:latest
@@ -29,6 +44,3 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     depends_on:
       - prometheus
-
-volumes:
-  redis_data:
