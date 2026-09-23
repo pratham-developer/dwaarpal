@@ -12,14 +12,14 @@ import (
 // Handler holds dependencies for the HTTP handlers.
 type Handler struct {
 	RedisClient *redis.Client
-	RateLimiter limiter.RateLimiter
+	Limiters    map[string]limiter.RateLimiter
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(rc *redis.Client, rl limiter.RateLimiter) *Handler {
+func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter) *Handler {
 	return &Handler{
 		RedisClient: rc,
-		RateLimiter: rl,
+		Limiters:    limiters,
 	}
 }
 
@@ -46,9 +46,10 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 
 // CheckRequest represents the JSON payload for a rate-limit check.
 type CheckRequest struct {
-	Key    string `json:"key"`
-	Limit  int    `json:"limit"`
-	Window int    `json:"window"` // window in seconds
+	Key       string `json:"key"`
+	Algorithm string `json:"algorithm"`
+	Limit     int    `json:"limit"`
+	Window    int    `json:"window"` // window in seconds
 }
 
 // CheckRateLimit handles rate-limiting decisions.
@@ -75,11 +76,20 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing 'key' in request", http.StatusBadRequest)
 		return
 	}
+	if req.Algorithm == "" {
+		req.Algorithm = "FIXED_WINDOW"
+	}
+
+	limiterToUse, exists := h.Limiters[req.Algorithm]
+	if !exists {
+		http.Error(w, "Unsupported algorithm", http.StatusBadRequest)
+		return
+	}
 
 	windowDuration := time.Duration(req.Window) * time.Second
 
 	// Call the rate limiter (cost is fixed at 1 for now)
-	res, err := h.RateLimiter.Allow(r.Context(), req.Key, req.Limit, windowDuration, 1)
+	res, err := limiterToUse.Allow(r.Context(), req.Key, req.Limit, windowDuration, 1)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return

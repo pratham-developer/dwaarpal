@@ -24,11 +24,14 @@ func main() {
 
 	log.Printf("Connected to Redis at %s", cfg.RedisAddress)
 
-	// Initialize Rate Limiter
-	rl := limiter.NewFixedWindowLimiter(rc)
+	// Initialize Rate Limiters
+	limiters := map[string]limiter.RateLimiter{
+		"FIXED_WINDOW":   limiter.NewFixedWindowLimiter(rc),
+		"SLIDING_WINDOW": limiter.NewSlidingWindowLimiter(rc),
+	}
 
 	// Initialize Handlers
-	h := handler.NewHandler(rc, rl)
+	h := handler.NewHandler(rc, limiters)
 
 	// Setup Routes
 	mux := http.NewServeMux()
