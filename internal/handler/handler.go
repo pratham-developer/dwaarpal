@@ -5,18 +5,21 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 )
 
 // Handler holds dependencies for the HTTP handlers.
 type Handler struct {
 	RedisClient *redis.Client
+	RateLimiter limiter.RateLimiter
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(rc *redis.Client) *Handler {
+func NewHandler(rc *redis.Client, rl limiter.RateLimiter) *Handler {
 	return &Handler{
 		RedisClient: rc,
+		RateLimiter: rl,
 	}
 }
 
@@ -41,23 +44,50 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// CheckRateLimit is a dummy endpoint for Milestone 1.
+// CheckRequest represents the JSON payload for a rate-limit check.
+type CheckRequest struct {
+	Key    string `json:"key"`
+	Limit  int    `json:"limit"`
+	Window int    `json:"window"` // window in seconds
+}
+
+// CheckRateLimit handles rate-limiting decisions.
 func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// This is a placeholder response.
-	// In Milestone 2+, we will parse the request, call the RateLimiter, and return the actual result.
-	response := map[string]interface{}{
-		"allowed":    true,
-		"remaining":  99,
-		"limit":      100,
-		"retryAfter": 0,
-		"resetAt":    time.Now().Add(time.Minute).Unix(),
+	var req CheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Set sensible defaults if not provided
+	if req.Limit <= 0 {
+		req.Limit = 100
+	}
+	if req.Window <= 0 {
+		req.Window = 60
+	}
+	if req.Key == "" {
+		http.Error(w, "Missing 'key' in request", http.StatusBadRequest)
+		return
+	}
+
+	windowDuration := time.Duration(req.Window) * time.Second
+
+	// Call the rate limiter (cost is fixed at 1 for now)
+	res, err := h.RateLimiter.Allow(r.Context(), req.Key, req.Limit, windowDuration, 1)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if !res.Allowed {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}
+	json.NewEncoder(w).Encode(res)
 }

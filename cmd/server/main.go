@@ -7,6 +7,7 @@ import (
 
 	"github.com/prathamkhanduja/dwaarpal/internal/config"
 	"github.com/prathamkhanduja/dwaarpal/internal/handler"
+	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 )
 
@@ -23,8 +24,11 @@ func main() {
 
 	log.Printf("Connected to Redis at %s", cfg.RedisAddress)
 
+	// Initialize Rate Limiter
+	rl := limiter.NewFixedWindowLimiter(rc)
+
 	// Initialize Handlers
-	h := handler.NewHandler(rc)
+	h := handler.NewHandler(rc, rl)
 
 	// Setup Routes
 	mux := http.NewServeMux()
