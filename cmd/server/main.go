@@ -3,14 +3,19 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 
+	"github.com/prathamkhanduja/dwaarpal/api/proto"
 	"github.com/prathamkhanduja/dwaarpal/internal/config"
+	grpc_handler "github.com/prathamkhanduja/dwaarpal/internal/grpc"
 	"github.com/prathamkhanduja/dwaarpal/internal/handler"
 	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
 	"github.com/prathamkhanduja/dwaarpal/internal/metrics"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 func main() {
@@ -44,6 +49,23 @@ func main() {
 	mux.HandleFunc("/health", h.HealthCheck)
 	mux.HandleFunc("/v1/check", h.CheckRateLimit)
 	mux.Handle("/metrics", promhttp.Handler())
+
+	// Start gRPC Server
+	go func() {
+		lis, err := net.Listen("tcp", ":50051")
+		if err != nil {
+			log.Fatalf("failed to listen on :50051: %v", err)
+		}
+
+		grpcServer := grpc.NewServer()
+		proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(limiters))
+		reflection.Register(grpcServer)
+
+		log.Printf("Starting gRPC server on :50051")
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatalf("gRPC server failed: %v", err)
+		}
+	}()
 
 	// Start HTTP Server
 	serverAddr := fmt.Sprintf(":%s", cfg.Port)

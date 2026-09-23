@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package ratelimit;
+
+option go_package = "github.com/prathamkhanduja/dwaarpal/api/proto";
+
+service RateLimiterService {
+    rpc CheckRateLimit (CheckRateLimitRequest) returns (CheckRateLimitResponse);
+}
+
+message CheckRateLimitRequest {
+    string key = 1;
+    
+    // The algorithm to use: "TOKEN_BUCKET", "FIXED_WINDOW", or "SLIDING_WINDOW"
+    string algorithm = 2; 
+    
+    // Maximum number of allowed requests
+    int32 limit = 3;
+    
+    // Window size in seconds
+    int32 window = 4; 
+}
+
+message CheckRateLimitResponse {
+    bool allowed = 1;
+    int32 remaining = 2;
+    
+    // Retry after in milliseconds
+    int64 retry_after = 3; 
+    
+    // Timestamp for when the limit resets (ISO 8601 string format)
+    string reset_at = 4; 
+}

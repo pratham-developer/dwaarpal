@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine
+FROM golang:alpine
 
 WORKDIR /app
 
@@ -12,8 +12,8 @@ COPY . .
 # Build the application
 RUN go build -o /bin/dwaarpal cmd/server/main.go
 
-# Expose port
-EXPOSE 8080
+# Expose HTTP and gRPC ports
+EXPOSE 8080 50051
 
 # Run the binary
 CMD ["/bin/dwaarpal"]

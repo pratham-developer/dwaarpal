@@ -1,29 +1,23 @@
 version: '3.8'
 
 services:
-  # A 6-node Redis Cluster (3 Masters, 3 Replicas) inside a single container for local testing.
-  # Masters: 7000, 7001, 7002. Replicas: 7003, 7004, 7005
   api:
-    build: .
+    build: ..
     container_name: dwaarpal-api
     ports:
       - "8080:8080"
+      - "50051:50051"
     environment:
       - PORT=8080
-      - REDIS_ADDRESS=redis-cluster:7000,redis-cluster:7001,redis-cluster:7002,redis-cluster:7003,redis-cluster:7004,redis-cluster:7005
+      - REDIS_ADDRESS=redis:6379
     depends_on:
-      - redis-cluster
+      - redis
 
-  redis-cluster:
-    image: grokzen/redis-cluster:latest
-    container_name: dwaarpal-redis-cluster
+  redis:
+    image: redis:7.2-alpine
+    container_name: dwaarpal-redis
     ports:
-      - "7000:7000"
-      - "7001:7001"
-      - "7002:7002"
-      - "7003:7003"
-      - "7004:7004"
-      - "7005:7005"
+      - "6379:6379"
 
   prometheus:
     image: prom/prometheus:latest
@@ -32,8 +26,6 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
   grafana:
     image: grafana/grafana:latest
