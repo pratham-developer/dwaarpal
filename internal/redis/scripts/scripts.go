@@ -7,3 +7,6 @@ var FixedWindow string
 
 //go:embed sliding_window.lua
 var SlidingWindow string
+
+//go:embed token_bucket.lua
+var TokenBucket string

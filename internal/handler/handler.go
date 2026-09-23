@@ -77,7 +77,7 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Algorithm == "" {
-		req.Algorithm = "FIXED_WINDOW"
+		req.Algorithm = "TOKEN_BUCKET"
 	}
 
 	limiterToUse, exists := h.Limiters[req.Algorithm]
