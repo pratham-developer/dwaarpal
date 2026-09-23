@@ -100,7 +100,7 @@ docker run -d \
   -p 8080:8080 \
   -p 50051:50051 \
   -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
-  ghcr.io/your-username/dwaarpal:latest
+  ghcr.io/pratham-developer/dwaarpal:latest
 ```
 *(Note: The GitHub Actions pipeline in this repository automatically publishes the `dwaarpal` image to the GitHub Container Registry on every push to `main`.)*
 
