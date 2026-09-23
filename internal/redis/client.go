@@ -17,7 +17,13 @@ type Client struct {
 func NewClient(addr string) (*Client, error) {
 	var rdb redis.UniversalClient
 
-	if strings.Contains(addr, ",") {
+	if strings.HasPrefix(addr, "redis://") || strings.HasPrefix(addr, "rediss://") {
+		opts, err := redis.ParseURL(addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid redis URL: %w", err)
+		}
+		rdb = redis.NewClient(opts)
+	} else if strings.Contains(addr, ",") {
 		addrs := strings.Split(addr, ",")
 		rdb = redis.NewClusterClient(&redis.ClusterOptions{
 			Addrs: addrs,

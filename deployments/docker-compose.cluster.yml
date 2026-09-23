@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  redis-cluster:
+    image: grokzen/redis-cluster:latest
+    container_name: dwaarpal-redis-cluster
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7002:7002"
+      - "7003:7003"
+      - "7004:7004"
+      - "7005:7005"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dwaarpal-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dwaarpal-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus

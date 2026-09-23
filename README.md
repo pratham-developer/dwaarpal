@@ -1,0 +1,156 @@
+<div align="center">
+  <h1>🛡️ Dwaarpal</h1>
+  <p><b>A highly available, horizontally scalable, dual-stack (HTTP & gRPC) Distributed Rate Limiter built in Go.</b></p>
+</div>
+
+---
+
+## 📖 Table of Contents
+- [What is Dwaarpal?](#-what-is-dwaarpal)
+- [The Architecture of Scale](#-the-architecture-of-scale)
+  - [1. Completely Stateless (Horizontal Scaling)](#1-completely-stateless-horizontal-scaling)
+  - [2. The Race Condition Problem (Lua Atomicity)](#2-the-race-condition-problem-lua-atomicity)
+  - [3. Eliminating the SPOF (Sharding & Replication)](#3-eliminating-the-spof-sharding--replication)
+  - [4. Fail-Closed Protection (Timeout Safety)](#4-fail-closed-protection-timeout-safety)
+- [🚀 Quickstart Deployments](#-quickstart-deployments)
+  - [Option 1: Standalone (Local Development)](#option-1-standalone-local-development)
+  - [Option 2: Production Cluster Simulation](#option-2-production-cluster-simulation)
+- [🏢 Enterprise Deployment (BYOI)](#-enterprise-deployment-byoi)
+- [🔌 API Usage (Dual-Stack)](#-api-usage-dual-stack)
+- [📊 Observability](#-observability)
+
+---
+
+## 💡 What is Dwaarpal?
+**Dwaarpal** (Sanskrit for *Gatekeeper*) is an enterprise-grade rate-limiting microservice. It is designed to sit behind your API Gateway or internal Load Balancer and instantly decide whether an incoming request should be allowed or rejected based on strict algorithmic quotas.
+
+It supports **Token Bucket**, **Fixed Window**, and **Sliding Window** algorithms, and exposes both high-performance **gRPC** and standard **HTTP/REST** interfaces.
+
+---
+
+## 🧠 The Architecture of Scale
+
+Building a rate limiter is easy. Building a *distributed* rate limiter that handles 100,000 requests per second across a fleet of microservices without melting your database is extremely difficult. Here is how Dwaarpal solves the hardest problems in distributed systems:
+
+### 1. Completely Stateless (Horizontal Scaling)
+The Dwaarpal Go API nodes hold absolutely **zero memory** about how many requests a user has made. They are completely stateless computation nodes. 
+
+This means you can spin up 1,000 Dwaarpal containers side-by-side behind an AWS ALB or Kubernetes LoadBalancer. They do not need to talk to each other, sync data, or care which container handles which request. You can horizontally scale your rate-limiting throughput infinitely just by adding more Go nodes.
+
+### 2. The Race Condition Problem (Lua Atomicity)
+**The Problem**: If a user has exactly 1 token left in their quota, and they maliciously blast your API with 50 parallel requests at the exact same millisecond, those requests will hit 50 different Dwaarpal nodes simultaneously. If the nodes read the Redis value ("Tokens = 1"), subtract it in Go ("Tokens = 0"), and write it back, all 50 nodes would see "Tokens = 1" and allow the request. You would have allowed 50 requests instead of 1.
+
+**The Solution**: Dwaarpal completely bypasses this by shipping the algorithmic logic directly to the database via **Lua Scripts**. When the 50 nodes receive the requests, they fire a Lua script at the Redis Master. Because the Redis core engine is single-threaded, it executes these Lua scripts **atomically** in a queue. Exactly 1 script will read the token and subtract it. The other 49 will instantly fail. Zero race conditions.
+
+### 3. Eliminating the SPOF (Sharding & Replication)
+Using a single Redis node creates a massive Single Point of Failure (SPOF) and a network bottleneck. Dwaarpal is engineered to run against a **Redis Cluster**.
+
+- **Sharding via Hash Slots**: The Redis Cluster divides your entire database into exactly 16,384 "Hash Slots" distributed across multiple Master nodes.
+- **Client-Side Routing**: Dwaarpal uses `go-redis/v9`'s UniversalClient. On startup, Dwaarpal downloads the cluster topology. When a request comes in for `"user:123"`, Dwaarpal instantly calculates `CRC16("user:123") % 16384` and routes the Lua script execution **directly over the network to the exact physical Master node that owns the data**.
+- **High Availability & Leader Election**: If a Master node physically burns down, the cluster nodes use a continuous **Gossip Protocol** to detect the failure. The surviving nodes immediately hold a **Leader Election** and automatically promote a hot-standby Replica to become the new Master for those specific hash slots. During this ~3-5 second election window, Dwaarpal seamlessly relies on its Fail-Closed protection.
+
+### 4. Fail-Closed Protection (Timeout Safety)
+If you are using a third-party managed Redis cluster over the public internet (like Upstash), or if your internal AWS ElastiCache experiences a severe latency spike, you do not want your Dwaarpal nodes to hang indefinitely waiting for a response (which exhausts connection pools and crashes your entire backend).
+
+Dwaarpal employs a strict **Fail-Closed Strategy** using `context.WithTimeout`. If a Redis network call takes longer than `50ms` (configurable), Dwaarpal instantly aborts the request, sheds the load, and returns a `503 Service Unavailable` (`allowed: false`). Your infrastructure stays completely healthy.
+
+### 5. Supported Algorithms
+Dwaarpal implements three mathematically distinct rate-limiting algorithms natively in Lua:
+- **Token Bucket**: Perfect for smoothing out bursts. Tokens are added to the bucket at a steady rate; requests consume tokens.
+- **Fixed Window**: The simplest approach. Counts requests within discrete time blocks (e.g., exactly 12:00:00 to 12:01:00). High performance, but suffers from edge-case bursting at window boundaries.
+- **Sliding Window Log / Counter**: The most accurate. Smooths out traffic continuously by looking back at the exact relative time window (e.g., the last 60 seconds from *right now*).
+
+---
+
+## 🚀 Quickstart Deployments
+
+Dwaarpal provides pre-configured Docker Compose files to get you up and running instantly.
+
+### Option 1: Standalone (Local Development)
+The easiest way to test Dwaarpal locally is using the standalone deployment. This spins up the Go API alongside a single Redis node, Prometheus, and Grafana.
+
+```bash
+docker-compose -f deployments/docker-compose.standalone.yml up -d --build
+```
+
+### Option 2: Production Cluster Simulation
+To simulate a real-world distributed environment, Dwaarpal includes a fully functional **6-node Redis Cluster** (3 Masters, 3 Replicas) deployment. 
+
+*(Note: Because this cluster maps internally to `127.0.0.1`, you should spin up the cluster infrastructure in Docker, and run the Go API natively on your host machine to connect to it.)*
+
+1. Start the cluster infrastructure:
+```bash
+docker-compose -f deployments/docker-compose.cluster.yml up -d
+```
+2. Start the API locally:
+```bash
+REDIS_ADDRESS="localhost:7000,localhost:7001,localhost:7002,localhost:7003,localhost:7004,localhost:7005" go run cmd/server/main.go
+```
+
+---
+
+## 🏢 Enterprise Deployment (BYOI)
+
+Dwaarpal is designed for **Bring Your Own Infrastructure (BYOI)**. The Go application natively supports connecting to standalone Redis, Redis Sentinel, or managed clusters like AWS ElastiCache and Upstash (via TLS `rediss://` parsing).
+
+If a Platform Engineering team wants to deploy Dwaarpal in their private cloud against a massive managed ElastiCache cluster, they do not need to build the code. They simply pull the Docker image and inject the configuration endpoint:
+
+```bash
+docker run -d \
+  -p 8080:8080 \
+  -p 50051:50051 \
+  -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
+  ghcr.io/your-username/dwaarpal:latest
+```
+*(Note: The GitHub Actions pipeline in this repository automatically publishes the `dwaarpal` image to the GitHub Container Registry on every push to `main`.)*
+
+---
+
+## 🔌 API Usage (Dual-Stack)
+
+Once Dwaarpal is running, the underlying state is completely synchronized regardless of which protocol you use to query it!
+
+### HTTP (REST) - Port 8080
+```bash
+curl -X POST http://localhost:8080/v1/check \
+     -H "Content-Type: application/json" \
+     -d '{"key": "user:123", "limit": 100, "window": 60}'
+```
+**Response**:
+```json
+{
+  "allowed": true,
+  "remaining": 99,
+  "retryAfter": 0,
+  "resetAt": "2026-09-24T01:43:37Z"
+}
+```
+
+### gRPC - Port 50051
+*(Note: Dwaarpal implements **gRPC Reflection**, so tools like Postman and grpcurl can automatically discover the `RateLimiterService` schema without needing the `.proto` files.)*
+
+```bash
+grpcurl -plaintext -d '{"key": "user:123", "limit": 100, "window": 60}' \
+    localhost:50051 ratelimit.RateLimiterService/CheckRateLimit
+```
+**Response**:
+```json
+{
+  "allowed": true,
+  "remaining": 98,
+  "resetAt": "2026-09-24T01:43:37Z"
+}
+```
+
+---
+
+## 📊 Observability
+
+Dwaarpal is built for Day-2 operations. It exposes a `/metrics` endpoint on port `8080` that is scraped by Prometheus.
+
+**Available Metrics:**
+- `rate_limit_requests_total`: Tracks overall throughput and allowed/rejected ratios.
+- `rate_limit_decision_latency_seconds`: A histogram tracking the execution speed of the Lua scripts inside Redis.
+- `rate_limit_redis_errors_total`: Tracks timeout and fail-closed events.
+
+The provided Docker Compose environments automatically spin up a Grafana dashboard on `http://localhost:3000` (User: `admin`, Pass: `admin`) so you can visualize your traffic in real-time.
