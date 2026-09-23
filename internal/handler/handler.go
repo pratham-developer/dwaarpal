@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -93,15 +94,27 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 
+	ctx, cancel := context.WithTimeout(r.Context(), 50*time.Millisecond)
+	defer cancel()
+
 	// Call the rate limiter (cost is fixed at 1 for now)
-	res, err := limiterToUse.Allow(r.Context(), req.Key, req.Limit, windowDuration, 1)
+	res, err := limiterToUse.Allow(ctx, req.Key, req.Limit, windowDuration, 1)
 	
 	metrics.DecisionLatency.WithLabelValues(req.Algorithm).Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		metrics.RedisErrorsTotal.WithLabelValues(req.Algorithm).Inc()
-		slog.Error("Rate limit decision failed", "error", err, "key", req.Key, "algorithm", req.Algorithm)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		slog.Error("Rate limit decision failed, failing closed", "error", err, "key", req.Key, "algorithm", req.Algorithm)
+		
+		w.Header().Set("Content-Type", "application/json")
+		// We return 503 Service Unavailable to indicate our dependency (Redis) failed,
+		// but the payload format matches a rate limit rejection (Fail Closed).
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(limiter.Result{
+			Allowed:    false,
+			Remaining:  0,
+			RetryAfter: 0,
+		})
 		return
 	}
 
