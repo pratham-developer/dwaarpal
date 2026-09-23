@@ -2,10 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
+	"github.com/prathamkhanduja/dwaarpal/internal/metrics"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 )
 
@@ -88,12 +91,29 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 
 	windowDuration := time.Duration(req.Window) * time.Second
 
+	start := time.Now()
+
 	// Call the rate limiter (cost is fixed at 1 for now)
 	res, err := limiterToUse.Allow(r.Context(), req.Key, req.Limit, windowDuration, 1)
+	
+	metrics.DecisionLatency.WithLabelValues(req.Algorithm).Observe(time.Since(start).Seconds())
+
 	if err != nil {
+		metrics.RedisErrorsTotal.WithLabelValues(req.Algorithm).Inc()
+		slog.Error("Rate limit decision failed", "error", err, "key", req.Key, "algorithm", req.Algorithm)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+
+	metrics.RequestsTotal.WithLabelValues(req.Algorithm, strconv.FormatBool(res.Allowed)).Inc()
+
+	slog.Info("Rate limit decision",
+		"key", req.Key,
+		"algorithm", req.Algorithm,
+		"allowed", res.Allowed,
+		"remaining", res.Remaining,
+		"retryAfter", res.RetryAfter,
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	if !res.Allowed {

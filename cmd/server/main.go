@@ -8,12 +8,17 @@ import (
 	"github.com/prathamkhanduja/dwaarpal/internal/config"
 	"github.com/prathamkhanduja/dwaarpal/internal/handler"
 	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
+	"github.com/prathamkhanduja/dwaarpal/internal/metrics"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
+
+	// Initialize metrics
+	metrics.Init()
 
 	// Initialize Redis client
 	rc, err := redis.NewClient(cfg.RedisAddress)
@@ -38,6 +43,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", h.HealthCheck)
 	mux.HandleFunc("/v1/check", h.CheckRateLimit)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Start HTTP Server
 	serverAddr := fmt.Sprintf(":%s", cfg.Port)
