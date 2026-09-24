@@ -18,7 +18,7 @@ func TestLeakyBucketLimiter(t *testing.T) {
 
 	ctx := context.Background()
 	rateLimiter := limiter.NewLeakyBucketLimiter(rc)
-	
+
 	key := "test:leaky_bucket:user123"
 	// Bucket holds 5 units, takes 5 seconds to drain (leak rate = 1 unit per second)
 	limit := 5

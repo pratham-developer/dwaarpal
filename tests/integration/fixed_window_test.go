@@ -18,7 +18,7 @@ func TestFixedWindowLimiter(t *testing.T) {
 
 	ctx := context.Background()
 	rateLimiter := limiter.NewFixedWindowLimiter(rc)
-	
+
 	key := "test:fixed_window:user123"
 	limit := 3
 	window := 2 * time.Second
@@ -44,7 +44,7 @@ func TestFixedWindowLimiter(t *testing.T) {
 	res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
 	if err != nil {
 		t.Fatalf("Unexpected error on rejected request: %v", err)
-		}
+	}
 	if res.Allowed {
 		t.Errorf("Request should have been rejected")
 	}

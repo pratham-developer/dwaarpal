@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/prathamkhanduja/dwaarpal/api/proto"
 	"github.com/prathamkhanduja/dwaarpal/internal/config"
@@ -48,9 +53,14 @@ func main() {
 
 	// Setup Routes
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", h.HealthCheck)
-	mux.HandleFunc("/v1/check", h.CheckRateLimit)
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("GET /health", h.HealthCheck)
+	mux.HandleFunc("POST /v1/check", h.CheckRateLimit)
+	mux.Handle("GET /metrics", promhttp.Handler())
+
+	// Setup gRPC Server
+	grpcServer := grpc.NewServer()
+	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(limiters, cfg.RedisTimeout))
+	reflection.Register(grpcServer)
 
 	// Start gRPC Server
 	go func() {
@@ -58,21 +68,49 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to listen on :50051: %v", err)
 		}
-
-		grpcServer := grpc.NewServer()
-		proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(limiters, cfg.RedisTimeout))
-		reflection.Register(grpcServer)
-
 		log.Printf("Starting gRPC server on :50051")
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("gRPC server failed: %v", err)
 		}
 	}()
 
-	// Start HTTP Server
+	// Setup HTTP Server
 	serverAddr := fmt.Sprintf(":%s", cfg.Port)
-	log.Printf("Starting HTTP server on %s", serverAddr)
-	if err := http.ListenAndServe(serverAddr, mux); err != nil {
-		log.Fatalf("HTTP server failed: %v", err)
+	httpServer := &http.Server{
+		Addr:    serverAddr,
+		Handler: mux,
 	}
+
+	// Start HTTP Server
+	go func() {
+		log.Printf("Starting HTTP server on %s", serverAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server failed: %v", err)
+		}
+	}()
+
+	// Graceful Shutdown Channel
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	// Block until signal is received
+	sig := <-quit
+	log.Printf("Received signal: %v. Initiating graceful shutdown...", sig)
+
+	// Context with 15-second timeout for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// 1. Stop HTTP Server
+	log.Println("Stopping HTTP server...")
+	if err := httpServer.Shutdown(ctx); err != nil {
+		log.Printf("HTTP server forced to shutdown: %v", err)
+	}
+
+	// 2. Stop gRPC Server
+	log.Println("Stopping gRPC server...")
+	grpcServer.GracefulStop()
+
+	// 3. (Deferred) Redis connection pool will close when main exits
+	log.Println("Dwaarpal shutdown complete.")
 }

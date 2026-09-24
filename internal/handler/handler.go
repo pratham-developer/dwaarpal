@@ -31,11 +31,6 @@ func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter, timeo
 
 // HealthCheck responds with the server and Redis connection status.
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	redisStatus := "connected"
 	if err := h.RedisClient.Rdb.Ping(r.Context()).Err(); err != nil {
 		redisStatus = "disconnected"
@@ -60,11 +55,6 @@ type CheckRequest struct {
 
 // CheckRateLimit handles rate-limiting decisions.
 func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	var req CheckRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
@@ -101,13 +91,13 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 
 	// Call the rate limiter (cost is fixed at 1 for now)
 	res, err := limiterToUse.Allow(ctx, req.Key, req.Limit, windowDuration, 1)
-	
+
 	metrics.DecisionLatency.WithLabelValues(req.Algorithm).Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		metrics.RedisErrorsTotal.WithLabelValues(req.Algorithm).Inc()
 		slog.Error("Rate limit decision failed, failing closed", "error", err, "key", req.Key, "algorithm", req.Algorithm)
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		// We return 503 Service Unavailable to indicate our dependency (Redis) failed,
 		// but the payload format matches a rate limit rejection (Fail Closed).

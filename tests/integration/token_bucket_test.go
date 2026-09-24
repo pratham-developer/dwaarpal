@@ -18,7 +18,7 @@ func TestTokenBucketLimiter(t *testing.T) {
 
 	ctx := context.Background()
 	rateLimiter := limiter.NewTokenBucketLimiter(rc)
-	
+
 	key := "test:token_bucket:user123"
 	// 5 tokens per 1 second = refill rate of 5 tokens/sec
 	limit := 5

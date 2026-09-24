@@ -18,7 +18,7 @@ func TestSlidingWindowLogLimiter(t *testing.T) {
 
 	ctx := context.Background()
 	rateLimiter := limiter.NewSlidingWindowLogLimiter(rc)
-	
+
 	key := "test:sliding_window_log:user123"
 	limit := 3
 	window := 2 * time.Second

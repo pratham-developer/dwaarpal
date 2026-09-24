@@ -18,7 +18,7 @@ func TestSlidingWindowCounterLimiter(t *testing.T) {
 
 	ctx := context.Background()
 	rateLimiter := limiter.NewSlidingWindowCounterLimiter(rc)
-	
+
 	key := "test:sliding_window_counter:user123"
 	limit := 5
 	window := 2 * time.Second

@@ -49,10 +49,18 @@ Using a single Redis node creates a massive Single Point of Failure (SPOF) and a
 - **Client-Side Routing**: Dwaarpal uses `go-redis/v9`'s UniversalClient. On startup, Dwaarpal downloads the cluster topology. When a request comes in for `"user:123"`, Dwaarpal instantly calculates `CRC16("user:123") % 16384` and routes the Lua script execution **directly over the network to the exact physical Master node that owns the data**.
 - **High Availability & Leader Election**: If a Master node physically burns down, the cluster nodes use a continuous **Gossip Protocol** to detect the failure. The surviving nodes immediately hold a **Leader Election** and automatically promote a hot-standby Replica to become the new Master for those specific hash slots. During this ~3-5 second election window, Dwaarpal seamlessly relies on its Fail-Closed protection.
 
-### 4. Fail-Closed Protection (Timeout Safety)
+### 4. Production-Ready Safety Mechanisms
+#### Fail-Closed Protection (Timeout Safety)
 If you are using a third-party managed Redis cluster over the public internet (like Upstash), or if your internal AWS ElastiCache experiences a severe latency spike, you do not want your Dwaarpal nodes to hang indefinitely waiting for a response (which exhausts connection pools and crashes your entire backend).
 
 Dwaarpal employs a strict **Fail-Closed Strategy** using `context.WithTimeout`. If a Redis network call takes longer than `50ms` (configurable), Dwaarpal instantly aborts the request, sheds the load, and returns a `503 Service Unavailable` (`allowed: false`). Your infrastructure stays completely healthy.
+
+#### Kubernetes Graceful Shutdown
+When Kubernetes scales down a pod or deploys a new version, it sends a `SIGTERM` signal to the process. Dwaarpal natively traps this signal and executes a **Graceful Shutdown**:
+1. Stops accepting *new* HTTP and gRPC connections.
+2. Waits for all active, in-flight requests to finish processing (up to 15 seconds).
+3. Safely disconnects the Redis Connection Pool to prevent ghost connections on the cluster.
+4. Exits cleanly with code 0.
 
 ### 5. Supported Algorithms
 Dwaarpal implements five mathematically distinct rate-limiting algorithms natively in Lua:

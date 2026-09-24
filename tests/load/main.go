@@ -65,17 +65,17 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			
+
 			// Custom transport to handle high concurrency locally without running out of sockets
 			t := http.DefaultTransport.(*http.Transport).Clone()
 			t.MaxIdleConns = *concurrency
 			t.MaxIdleConnsPerHost = *concurrency
-			
+
 			client := &http.Client{
-				Timeout: 10 * time.Second,
+				Timeout:   10 * time.Second,
 				Transport: t,
 			}
-			
+
 			for range jobs {
 				start := time.Now()
 				req, _ := http.NewRequest(http.MethodPost, *url, bytes.NewBuffer(payloadBytes))

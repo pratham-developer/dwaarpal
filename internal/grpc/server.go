@@ -35,7 +35,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 	if limit <= 0 {
 		limit = 100
 	}
-	
+
 	window := int(req.Window)
 	if window <= 0 {
 		window = 60
@@ -45,7 +45,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 	if key == "" {
 		return nil, status.Error(codes.InvalidArgument, "missing 'key' in request")
 	}
-	
+
 	algorithm := req.Algorithm
 	if algorithm == "" {
 		algorithm = "TOKEN_BUCKET"
@@ -71,7 +71,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 	if err != nil {
 		metrics.RedisErrorsTotal.WithLabelValues(algorithm).Inc()
 		slog.Error("gRPC rate limit decision failed, failing closed", "error", err, "key", key, "algorithm", algorithm)
-		
+
 		// Fail Closed: Return an explicit response rejecting the request
 		return &proto.CheckRateLimitResponse{
 			Allowed:    false,

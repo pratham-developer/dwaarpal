@@ -56,7 +56,7 @@ func (l *FixedWindowLimiter) Allow(ctx context.Context, key string, limit int, w
 	if allowed {
 		retryAfter = 0 // No retry delay if allowed
 	} else {
-		remaining = 0  // 0 remaining if rejected
+		remaining = 0 // 0 remaining if rejected
 	}
 
 	return Result{
