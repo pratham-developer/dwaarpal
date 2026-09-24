@@ -17,13 +17,15 @@ import (
 type Handler struct {
 	RedisClient *redis.Client
 	Limiters    map[string]limiter.RateLimiter
+	Timeout     time.Duration
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter) *Handler {
+func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter, timeout time.Duration) *Handler {
 	return &Handler{
 		RedisClient: rc,
 		Limiters:    limiters,
+		Timeout:     timeout,
 	}
 }
 
@@ -94,7 +96,7 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(r.Context(), h.Timeout)
 	defer cancel()
 
 	// Call the rate limiter (cost is fixed at 1 for now)

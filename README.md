@@ -84,7 +84,7 @@ docker-compose -f deployments/docker-compose.cluster.yml up -d
 ```
 2. Start the API locally:
 ```bash
-REDIS_ADDRESS="localhost:7000,localhost:7001,localhost:7002,localhost:7003,localhost:7004,localhost:7005" go run cmd/server/main.go
+REDIS_ADDRESS="localhost:7000,localhost:7001,localhost:7002,localhost:7003,localhost:7004,localhost:7005" REDIS_TIMEOUT_MS="50" go run cmd/server/main.go
 ```
 
 ---
@@ -100,6 +100,7 @@ docker run -d \
   -p 8080:8080 \
   -p 50051:50051 \
   -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
+  -e REDIS_TIMEOUT_MS="50" \
   ghcr.io/pratham-developer/dwaarpal:latest
 ```
 *(Note: The GitHub Actions pipeline in this repository automatically publishes the `dwaarpal` image to the GitHub Container Registry on every push to `main`.)*

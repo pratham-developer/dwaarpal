@@ -17,12 +17,14 @@ import (
 type Server struct {
 	proto.UnimplementedRateLimiterServiceServer
 	Limiters map[string]limiter.RateLimiter
+	Timeout  time.Duration
 }
 
 // NewServer creates a new gRPC RateLimiter server.
-func NewServer(limiters map[string]limiter.RateLimiter) *Server {
+func NewServer(limiters map[string]limiter.RateLimiter, timeout time.Duration) *Server {
 	return &Server{
 		Limiters: limiters,
+		Timeout:  timeout,
 	}
 }
 
@@ -58,7 +60,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 	start := time.Now()
 
 	// Apply strict timeout for Fail Closed behavior (just like HTTP)
-	timeoutCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+	timeoutCtx, cancel := context.WithTimeout(ctx, s.Timeout)
 	defer cancel()
 
 	// Call the underlying rate limiter
