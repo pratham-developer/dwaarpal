@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.22.0
 	google.golang.org/grpc v1.84.0

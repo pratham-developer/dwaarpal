@@ -2,10 +2,12 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prathamkhanduja/dwaarpal/api/proto"
 	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
 	"github.com/prathamkhanduja/dwaarpal/internal/metrics"
@@ -18,13 +20,15 @@ type Server struct {
 	proto.UnimplementedRateLimiterServiceServer
 	Limiters map[string]limiter.RateLimiter
 	Timeout  time.Duration
+	L1Cache  *lru.Cache[string, time.Time]
 }
 
 // NewServer creates a new gRPC RateLimiter server.
-func NewServer(limiters map[string]limiter.RateLimiter, timeout time.Duration) *Server {
+func NewServer(limiters map[string]limiter.RateLimiter, timeout time.Duration, cache *lru.Cache[string, time.Time]) *Server {
 	return &Server{
 		Limiters: limiters,
 		Timeout:  timeout,
+		L1Cache:  cache,
 	}
 }
 
@@ -57,6 +61,24 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 	}
 
 	windowDuration := time.Duration(window) * time.Second
+
+	// L1 Cache (Penalty Box) Check
+	l1Key := fmt.Sprintf("%s:%s:%d:%d", algorithm, key, limit, window)
+	now := time.Now().UTC()
+
+	if resetAt, ok := s.L1Cache.Get(l1Key); ok {
+		if now.Before(resetAt) {
+			retryAfter := resetAt.Sub(now)
+			slog.Info("gRPC L1 Cache Hit: Request blocked locally", "key", l1Key, "retryAfter", retryAfter)
+			return &proto.CheckRateLimitResponse{
+				Allowed:    false,
+				Remaining:  0,
+				RetryAfter: int64(retryAfter.Milliseconds()),
+				ResetAt:    resetAt.Format(time.RFC3339),
+			}, nil
+		}
+	}
+
 	start := time.Now()
 
 	// Apply strict timeout for Fail Closed behavior (just like HTTP)
@@ -77,7 +99,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 			Allowed:    false,
 			Remaining:  0,
 			RetryAfter: 0,
-			ResetAt:    time.Now().Format(time.RFC3339),
+			ResetAt:    time.Now().UTC().Format(time.RFC3339),
 		}, nil
 	}
 
@@ -90,6 +112,14 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 		"remaining", res.Remaining,
 		"retryAfter", res.RetryAfter,
 	)
+
+	// L1 Cache Population (Negative Caching)
+	if !res.Allowed {
+		res.ResetAt = time.Now().UTC().Add(res.RetryAfter)
+		s.L1Cache.Add(l1Key, res.ResetAt)
+	} else {
+		res.ResetAt = time.Now().UTC().Add(res.RetryAfter)
+	}
 
 	return &proto.CheckRateLimitResponse{
 		Allowed:    res.Allowed,
