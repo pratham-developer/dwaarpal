@@ -9,7 +9,7 @@ import (
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 )
 
-func TestSlidingWindowLimiter(t *testing.T) {
+func TestSlidingWindowLogLimiter(t *testing.T) {
 	rc, err := redis.NewClient("localhost:6379")
 	if err != nil {
 		t.Skipf("Skipping integration test, Redis not available: %v", err)
@@ -17,9 +17,9 @@ func TestSlidingWindowLimiter(t *testing.T) {
 	defer rc.Close()
 
 	ctx := context.Background()
-	rateLimiter := limiter.NewSlidingWindowLimiter(rc)
+	rateLimiter := limiter.NewSlidingWindowLogLimiter(rc)
 	
-	key := "test:sliding_window:user123"
+	key := "test:sliding_window_log:user123"
 	limit := 3
 	window := 2 * time.Second
 

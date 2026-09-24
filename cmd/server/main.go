@@ -36,9 +36,10 @@ func main() {
 
 	// Initialize Rate Limiters
 	limiters := map[string]limiter.RateLimiter{
-		"FIXED_WINDOW":   limiter.NewFixedWindowLimiter(rc),
-		"SLIDING_WINDOW": limiter.NewSlidingWindowLimiter(rc),
-		"TOKEN_BUCKET":   limiter.NewTokenBucketLimiter(rc),
+		"FIXED_WINDOW":           limiter.NewFixedWindowLimiter(rc),
+		"SLIDING_WINDOW_LOG":     limiter.NewSlidingWindowLogLimiter(rc),
+		"SLIDING_WINDOW_COUNTER": limiter.NewSlidingWindowCounterLimiter(rc),
+		"TOKEN_BUCKET":           limiter.NewTokenBucketLimiter(rc),
 	}
 
 	// Initialize Handlers

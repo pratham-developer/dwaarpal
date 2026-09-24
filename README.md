@@ -55,10 +55,11 @@ If you are using a third-party managed Redis cluster over the public internet (l
 Dwaarpal employs a strict **Fail-Closed Strategy** using `context.WithTimeout`. If a Redis network call takes longer than `50ms` (configurable), Dwaarpal instantly aborts the request, sheds the load, and returns a `503 Service Unavailable` (`allowed: false`). Your infrastructure stays completely healthy.
 
 ### 5. Supported Algorithms
-Dwaarpal implements three mathematically distinct rate-limiting algorithms natively in Lua:
+Dwaarpal implements four mathematically distinct rate-limiting algorithms natively in Lua:
 - **Token Bucket**: Perfect for smoothing out bursts. Tokens are added to the bucket at a steady rate; requests consume tokens.
 - **Fixed Window**: The simplest approach. Counts requests within discrete time blocks (e.g., exactly 12:00:00 to 12:01:00). High performance, but suffers from edge-case bursting at window boundaries.
-- **Sliding Window Log / Counter**: The most accurate. Smooths out traffic continuously by looking back at the exact relative time window (e.g., the last 60 seconds from *right now*).
+- **Sliding Window Log**: The most mathematically accurate algorithm. Dwaarpal implements this using Redis Sorted Sets (`ZSET`). It literally logs the exact timestamp of every single request to smooth out traffic continuously by looking back at the exact relative time window (e.g., the last 60 seconds from *right now*).
+- **Sliding Window Counter**: A highly memory-efficient approximation of the Sliding Window Log. It only stores two integers (current and previous window counters) and mathematically estimates traffic overlap. Perfect for massive scale where `ZSET` memory overhead is unacceptable.
 
 ---
 

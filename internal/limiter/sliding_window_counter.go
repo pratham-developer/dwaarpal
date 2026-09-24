@@ -2,41 +2,40 @@ package limiter
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis"
 	"github.com/prathamkhanduja/dwaarpal/internal/redis/scripts"
 	go_redis "github.com/redis/go-redis/v9"
 )
 
-// SlidingWindowLimiter implements the RateLimiter interface using a sliding window algorithm.
-type SlidingWindowLimiter struct {
+// SlidingWindowCounterLimiter implements the RateLimiter interface using a sliding window counter approximation.
+type SlidingWindowCounterLimiter struct {
 	rc     *redis.Client
 	script *go_redis.Script
 }
 
-// NewSlidingWindowLimiter creates a new SlidingWindowLimiter.
-func NewSlidingWindowLimiter(rc *redis.Client) *SlidingWindowLimiter {
-	return &SlidingWindowLimiter{
+// NewSlidingWindowCounterLimiter creates a new SlidingWindowCounterLimiter.
+func NewSlidingWindowCounterLimiter(rc *redis.Client) *SlidingWindowCounterLimiter {
+	return &SlidingWindowCounterLimiter{
 		rc:     rc,
-		script: go_redis.NewScript(scripts.SlidingWindow),
+		script: go_redis.NewScript(scripts.SlidingWindowCounter),
 	}
 }
 
-// Allow checks if the request is allowed based on the sliding window rate limit.
-func (l *SlidingWindowLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration, cost int) (Result, error) {
+// Allow checks if the request is allowed based on the sliding window counter rate limit.
+func (l *SlidingWindowCounterLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration, cost int) (Result, error) {
 	windowMs := int(window.Milliseconds())
 	if windowMs <= 0 {
-		windowMs = 1000 // default to 1s if invalid
+		windowMs = 1000 // Ensure at least 1 second
 	}
 
 	nowMs := time.Now().UnixMilli()
-	baseID := uuid.New().String()
 
 	// Execute the Lua script
-	res, err := l.script.Run(ctx, l.rc.Rdb, []string{key}, limit, windowMs, nowMs, cost, baseID).Result()
+	res, err := l.script.Run(ctx, l.rc.Rdb, []string{key}, limit, windowMs, nowMs, cost).Result()
 	if err != nil {
 		return Result{}, fmt.Errorf("redis script execution failed: %w", err)
 	}
