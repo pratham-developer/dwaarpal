@@ -46,12 +46,12 @@ func main() {
 	fmt.Printf("Starting load test against %s\n", *url)
 	fmt.Printf("Requests: %d, Concurrency: %d, Algorithm: %s\n", *requests, *concurrency, *algorithm)
 
-	reqPayload := CheckRequest{
+	reqPayload := []CheckRequest{{
 		Key:       *key,
 		Algorithm: *algorithm,
 		Limit:     *limit,
 		Window:    *window,
-	}
+	}}
 
 	payloadBytes, _ := json.Marshal(reqPayload)
 

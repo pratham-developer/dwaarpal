@@ -28,7 +28,7 @@ func TestFixedWindowLimiter(t *testing.T) {
 
 	// Test allowing up to the limit
 	for i := 1; i <= limit; i++ {
-		res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+		res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 		if err != nil {
 			t.Fatalf("Unexpected error on request %d: %v", i, err)
 		}
@@ -41,7 +41,7 @@ func TestFixedWindowLimiter(t *testing.T) {
 	}
 
 	// Test rejecting after limit
-	res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil {
 		t.Fatalf("Unexpected error on rejected request: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestFixedWindowLimiter(t *testing.T) {
 	time.Sleep(window + 100*time.Millisecond)
 
 	// Should be allowed again
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil {
 		t.Fatalf("Unexpected error after window reset: %v", err)
 	}

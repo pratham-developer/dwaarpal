@@ -39,6 +39,22 @@ func main() {
 
 	log.Printf("Connected to Redis at %s", cfg.RedisAddress)
 
+	// Pre-Warm Cluster (Load Scripts) with retries
+	log.Println("Pre-warming Redis cluster script cache...")
+	var warmErr error
+	for i := 0; i < 15; i++ {
+		warmErr = rc.PreWarmAndSelfHeal(context.Background())
+		if warmErr == nil {
+			break
+		}
+		log.Printf("Waiting for Redis cluster to allow script loading (attempt %d/15)... err: %v", i+1, warmErr)
+		time.Sleep(2 * time.Second)
+	}
+	if warmErr != nil {
+		log.Fatalf("Failed to pre-warm Redis scripts: %v", warmErr)
+	}
+	log.Println("Successfully loaded all Lua algorithms to Redis RAM.")
+
 	// Initialize Rate Limiters
 	limiters := map[string]limiter.RateLimiter{
 		"FIXED_WINDOW":           limiter.NewFixedWindowLimiter(rc),
@@ -49,7 +65,7 @@ func main() {
 	}
 
 	// Initialize Handlers
-	h := handler.NewHandler(rc, limiters, cfg.RedisTimeout, cfg.L1CacheSize)
+	h := handler.NewHandler(rc, limiters, cfg.RedisTimeout, cfg.L1CacheSize, cfg.MaxBatchSize)
 
 	// Setup Routes
 	mux := http.NewServeMux()
@@ -59,7 +75,7 @@ func main() {
 
 	// Setup gRPC Server
 	grpcServer := grpc.NewServer()
-	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(limiters, cfg.RedisTimeout, h.L1Cache))
+	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(rc, limiters, cfg.RedisTimeout, h.L1Cache, cfg.MaxBatchSize))
 	reflection.Register(grpcServer)
 
 	// Start gRPC Server

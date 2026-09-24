@@ -16,3 +16,12 @@ var SlidingWindowCounter string
 
 //go:embed leaky_bucket.lua
 var LeakyBucket string
+
+// Cached SHA hashes
+var (
+	FixedWindowSHA          string
+	SlidingWindowLogSHA     string
+	TokenBucketSHA          string
+	SlidingWindowCounterSHA string
+	LeakyBucketSHA          string
+)

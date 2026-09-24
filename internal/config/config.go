@@ -12,6 +12,7 @@ type Config struct {
 	RedisAddress string
 	RedisTimeout time.Duration
 	L1CacheSize  int
+	MaxBatchSize int
 }
 
 // LoadConfig loads configuration from environment variables with sensible defaults.
@@ -42,10 +43,19 @@ func LoadConfig() Config {
 		}
 	}
 
+	batchSizeStr := os.Getenv("MAX_BATCH_SIZE")
+	maxBatchSize := 100 // default 100 keys per request
+	if batchSizeStr != "" {
+		if parsed, err := strconv.Atoi(batchSizeStr); err == nil && parsed > 0 {
+			maxBatchSize = parsed
+		}
+	}
+
 	return Config{
 		Port:         port,
 		RedisAddress: redisAddr,
 		RedisTimeout: time.Duration(timeoutMs) * time.Millisecond,
 		L1CacheSize:  l1CacheSize,
+		MaxBatchSize: maxBatchSize,
 	}
 }

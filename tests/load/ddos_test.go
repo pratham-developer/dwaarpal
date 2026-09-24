@@ -43,7 +43,7 @@ func TestDDoS_Active(t *testing.T) {
 
 		// 1. Sequentially breach the limit to safely populate the L1 Cache without crashing the Upstash connection pool
 		for i := 0; i <= limit; i++ {
-			reqBody := DDoSCheckRequest{Key: key, Algorithm: "TOKEN_BUCKET", Limit: limit, Window: 60}
+			reqBody := []DDoSCheckRequest{{Key: key, Algorithm: "TOKEN_BUCKET", Limit: limit, Window: 60}}
 			jsonData, _ := json.Marshal(reqBody)
 			http.Post("http://localhost:8080/v1/check", "application/json", bytes.NewBuffer(jsonData))
 		}
@@ -56,12 +56,12 @@ func TestDDoS_Active(t *testing.T) {
 			go func(ip string) {
 				defer wg.Done()
 
-				reqBody := DDoSCheckRequest{
+				reqBody := []DDoSCheckRequest{{
 					Key:       ip,
 					Algorithm: "TOKEN_BUCKET",
 					Limit:     limit,
 					Window:    60,
-				}
+				}}
 				jsonData, _ := json.Marshal(reqBody)
 
 				resp, err := http.Post("http://localhost:8080/v1/check", "application/json", bytes.NewBuffer(jsonData))

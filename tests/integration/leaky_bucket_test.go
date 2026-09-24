@@ -28,7 +28,7 @@ func TestLeakyBucketLimiter(t *testing.T) {
 
 	// Fire 5 requests instantly. They should all be allowed as they fill the bucket.
 	for i := 1; i <= 5; i++ {
-		res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+		res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 		if err != nil {
 			t.Fatalf("Unexpected error on request %d: %v", i, err)
 		}
@@ -38,7 +38,7 @@ func TestLeakyBucketLimiter(t *testing.T) {
 	}
 
 	// 6th request immediately should fail since the bucket is completely full.
-	res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || res.Allowed {
 		t.Errorf("Request 6 should have been rejected (bucket full)")
 	}
@@ -50,13 +50,13 @@ func TestLeakyBucketLimiter(t *testing.T) {
 	time.Sleep(1100 * time.Millisecond)
 
 	// Now we can fire 1 more request.
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || !res.Allowed {
 		t.Errorf("Request 7 should have been allowed after bucket leaked 1 unit")
 	}
 
 	// 8th request immediately should fail again because the bucket is full again.
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || res.Allowed {
 		t.Errorf("Request 8 should have been rejected (bucket full again)")
 	}

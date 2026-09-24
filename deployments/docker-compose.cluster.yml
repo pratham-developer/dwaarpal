@@ -1,16 +1,32 @@
 version: '3.8'
 
 services:
+  api:
+    build: ..
+    container_name: dwaarpal-api
+    restart: always
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      - PORT=8080
+      - REDIS_ADDRESS=redis-cluster:7010,redis-cluster:7011,redis-cluster:7012,redis-cluster:7013,redis-cluster:7014,redis-cluster:7015
+      - REDIS_TIMEOUT_MS=1000
+    depends_on:
+      - redis-cluster
   redis-cluster:
     image: grokzen/redis-cluster:latest
     container_name: dwaarpal-redis-cluster
+    environment:
+      - INITIAL_PORT=7010
+      - IP=redis-cluster
     ports:
-      - "7000:7000"
-      - "7001:7001"
-      - "7002:7002"
-      - "7003:7003"
-      - "7004:7004"
-      - "7005:7005"
+      - "7010:7010"
+      - "7011:7011"
+      - "7012:7012"
+      - "7013:7013"
+      - "7014:7014"
+      - "7015:7015"
 
   prometheus:
     image: prom/prometheus:latest

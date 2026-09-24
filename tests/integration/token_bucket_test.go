@@ -28,7 +28,7 @@ func TestTokenBucketLimiter(t *testing.T) {
 
 	// Burst: Consume all 5 tokens
 	for i := 1; i <= limit; i++ {
-		res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+		res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 		if err != nil {
 			t.Fatalf("Unexpected error on request %d: %v", i, err)
 		}
@@ -38,7 +38,7 @@ func TestTokenBucketLimiter(t *testing.T) {
 	}
 
 	// Next request should fail immediately
-	res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || res.Allowed {
 		t.Errorf("Request after burst should have been rejected")
 	}
@@ -49,14 +49,14 @@ func TestTokenBucketLimiter(t *testing.T) {
 
 	// Should allow exactly 2 requests
 	for i := 1; i <= 2; i++ {
-		res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+		res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 		if err != nil || !res.Allowed {
 			t.Errorf("Refilled request %d should have been allowed", i)
 		}
 	}
 
 	// 3rd request should fail
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || res.Allowed {
 		t.Errorf("3rd refilled request should have been rejected")
 	}

@@ -21,22 +21,84 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type RateLimitDescriptor struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Key           string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Algorithm     string                 `protobuf:"bytes,2,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
+	Limit         int32                  `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	Window        int32                  `protobuf:"varint,4,opt,name=window,proto3" json:"window,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RateLimitDescriptor) Reset() {
+	*x = RateLimitDescriptor{}
+	mi := &file_api_proto_ratelimit_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RateLimitDescriptor) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RateLimitDescriptor) ProtoMessage() {}
+
+func (x *RateLimitDescriptor) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_ratelimit_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RateLimitDescriptor.ProtoReflect.Descriptor instead.
+func (*RateLimitDescriptor) Descriptor() ([]byte, []int) {
+	return file_api_proto_ratelimit_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *RateLimitDescriptor) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *RateLimitDescriptor) GetAlgorithm() string {
+	if x != nil {
+		return x.Algorithm
+	}
+	return ""
+}
+
+func (x *RateLimitDescriptor) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *RateLimitDescriptor) GetWindow() int32 {
+	if x != nil {
+		return x.Window
+	}
+	return 0
+}
+
 type CheckRateLimitRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Key   string                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	// The algorithm to use: "TOKEN_BUCKET", "FIXED_WINDOW", or "SLIDING_WINDOW"
-	Algorithm string `protobuf:"bytes,2,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
-	// Maximum number of allowed requests
-	Limit int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	// Window size in seconds
-	Window        int32 `protobuf:"varint,4,opt,name=window,proto3" json:"window,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Descriptors   []*RateLimitDescriptor `protobuf:"bytes,1,rep,name=descriptors,proto3" json:"descriptors,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckRateLimitRequest) Reset() {
 	*x = CheckRateLimitRequest{}
-	mi := &file_api_proto_ratelimit_proto_msgTypes[0]
+	mi := &file_api_proto_ratelimit_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +110,7 @@ func (x *CheckRateLimitRequest) String() string {
 func (*CheckRateLimitRequest) ProtoMessage() {}
 
 func (x *CheckRateLimitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_ratelimit_proto_msgTypes[0]
+	mi := &file_api_proto_ratelimit_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,52 +123,30 @@ func (x *CheckRateLimitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRateLimitRequest.ProtoReflect.Descriptor instead.
 func (*CheckRateLimitRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_ratelimit_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_ratelimit_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *CheckRateLimitRequest) GetKey() string {
+func (x *CheckRateLimitRequest) GetDescriptors() []*RateLimitDescriptor {
 	if x != nil {
-		return x.Key
+		return x.Descriptors
 	}
-	return ""
-}
-
-func (x *CheckRateLimitRequest) GetAlgorithm() string {
-	if x != nil {
-		return x.Algorithm
-	}
-	return ""
-}
-
-func (x *CheckRateLimitRequest) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *CheckRateLimitRequest) GetWindow() int32 {
-	if x != nil {
-		return x.Window
-	}
-	return 0
+	return nil
 }
 
 type CheckRateLimitResponse struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Allowed   bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
-	Remaining int32                  `protobuf:"varint,2,opt,name=remaining,proto3" json:"remaining,omitempty"`
-	// Retry after in milliseconds
-	RetryAfter int64 `protobuf:"varint,3,opt,name=retry_after,json=retryAfter,proto3" json:"retry_after,omitempty"`
-	// Timestamp for when the limit resets (ISO 8601 string format)
-	ResetAt       string `protobuf:"bytes,4,opt,name=reset_at,json=resetAt,proto3" json:"reset_at,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	FailedKey     string                 `protobuf:"bytes,2,opt,name=failed_key,json=failedKey,proto3" json:"failed_key,omitempty"`
+	Remaining     int32                  `protobuf:"varint,3,opt,name=remaining,proto3" json:"remaining,omitempty"`
+	RetryAfter    int64                  `protobuf:"varint,4,opt,name=retry_after,json=retryAfter,proto3" json:"retry_after,omitempty"`
+	ResetAt       string                 `protobuf:"bytes,5,opt,name=reset_at,json=resetAt,proto3" json:"reset_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CheckRateLimitResponse) Reset() {
 	*x = CheckRateLimitResponse{}
-	mi := &file_api_proto_ratelimit_proto_msgTypes[1]
+	mi := &file_api_proto_ratelimit_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -118,7 +158,7 @@ func (x *CheckRateLimitResponse) String() string {
 func (*CheckRateLimitResponse) ProtoMessage() {}
 
 func (x *CheckRateLimitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_ratelimit_proto_msgTypes[1]
+	mi := &file_api_proto_ratelimit_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -131,7 +171,7 @@ func (x *CheckRateLimitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckRateLimitResponse.ProtoReflect.Descriptor instead.
 func (*CheckRateLimitResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_ratelimit_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_ratelimit_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CheckRateLimitResponse) GetAllowed() bool {
@@ -139,6 +179,13 @@ func (x *CheckRateLimitResponse) GetAllowed() bool {
 		return x.Allowed
 	}
 	return false
+}
+
+func (x *CheckRateLimitResponse) GetFailedKey() string {
+	if x != nil {
+		return x.FailedKey
+	}
+	return ""
 }
 
 func (x *CheckRateLimitResponse) GetRemaining() int32 {
@@ -166,18 +213,22 @@ var File_api_proto_ratelimit_proto protoreflect.FileDescriptor
 
 const file_api_proto_ratelimit_proto_rawDesc = "" +
 	"\n" +
-	"\x19api/proto/ratelimit.proto\x12\tratelimit\"u\n" +
-	"\x15CheckRateLimitRequest\x12\x10\n" +
+	"\x19api/proto/ratelimit.proto\x12\tratelimit\"s\n" +
+	"\x13RateLimitDescriptor\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1c\n" +
 	"\talgorithm\x18\x02 \x01(\tR\talgorithm\x12\x14\n" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\x12\x16\n" +
-	"\x06window\x18\x04 \x01(\x05R\x06window\"\x8c\x01\n" +
+	"\x06window\x18\x04 \x01(\x05R\x06window\"Y\n" +
+	"\x15CheckRateLimitRequest\x12@\n" +
+	"\vdescriptors\x18\x01 \x03(\v2\x1e.ratelimit.RateLimitDescriptorR\vdescriptors\"\xab\x01\n" +
 	"\x16CheckRateLimitResponse\x12\x18\n" +
-	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x1c\n" +
-	"\tremaining\x18\x02 \x01(\x05R\tremaining\x12\x1f\n" +
-	"\vretry_after\x18\x03 \x01(\x03R\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12\x1d\n" +
+	"\n" +
+	"failed_key\x18\x02 \x01(\tR\tfailedKey\x12\x1c\n" +
+	"\tremaining\x18\x03 \x01(\x05R\tremaining\x12\x1f\n" +
+	"\vretry_after\x18\x04 \x01(\x03R\n" +
 	"retryAfter\x12\x19\n" +
-	"\breset_at\x18\x04 \x01(\tR\aresetAt2k\n" +
+	"\breset_at\x18\x05 \x01(\tR\aresetAt2k\n" +
 	"\x12RateLimiterService\x12U\n" +
 	"\x0eCheckRateLimit\x12 .ratelimit.CheckRateLimitRequest\x1a!.ratelimit.CheckRateLimitResponseB/Z-github.com/prathamkhanduja/dwaarpal/api/protob\x06proto3"
 
@@ -193,19 +244,21 @@ func file_api_proto_ratelimit_proto_rawDescGZIP() []byte {
 	return file_api_proto_ratelimit_proto_rawDescData
 }
 
-var file_api_proto_ratelimit_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_api_proto_ratelimit_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_api_proto_ratelimit_proto_goTypes = []any{
-	(*CheckRateLimitRequest)(nil),  // 0: ratelimit.CheckRateLimitRequest
-	(*CheckRateLimitResponse)(nil), // 1: ratelimit.CheckRateLimitResponse
+	(*RateLimitDescriptor)(nil),    // 0: ratelimit.RateLimitDescriptor
+	(*CheckRateLimitRequest)(nil),  // 1: ratelimit.CheckRateLimitRequest
+	(*CheckRateLimitResponse)(nil), // 2: ratelimit.CheckRateLimitResponse
 }
 var file_api_proto_ratelimit_proto_depIdxs = []int32{
-	0, // 0: ratelimit.RateLimiterService.CheckRateLimit:input_type -> ratelimit.CheckRateLimitRequest
-	1, // 1: ratelimit.RateLimiterService.CheckRateLimit:output_type -> ratelimit.CheckRateLimitResponse
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: ratelimit.CheckRateLimitRequest.descriptors:type_name -> ratelimit.RateLimitDescriptor
+	1, // 1: ratelimit.RateLimiterService.CheckRateLimit:input_type -> ratelimit.CheckRateLimitRequest
+	2, // 2: ratelimit.RateLimiterService.CheckRateLimit:output_type -> ratelimit.CheckRateLimitResponse
+	2, // [2:3] is the sub-list for method output_type
+	1, // [1:2] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_ratelimit_proto_init() }
@@ -219,7 +272,7 @@ func file_api_proto_ratelimit_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_ratelimit_proto_rawDesc), len(file_api_proto_ratelimit_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

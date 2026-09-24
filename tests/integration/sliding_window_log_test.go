@@ -27,7 +27,7 @@ func TestSlidingWindowLogLimiter(t *testing.T) {
 
 	// Fire 2 requests initially
 	for i := 1; i <= 2; i++ {
-		res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+		res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 		if err != nil {
 			t.Fatalf("Unexpected error on request %d: %v", i, err)
 		}
@@ -41,13 +41,13 @@ func TestSlidingWindowLogLimiter(t *testing.T) {
 
 	// Fire 2 more requests
 	// First one should succeed (total 3 in last 2 seconds)
-	res, err := rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err := allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || !res.Allowed {
 		t.Errorf("Request 3 should have been allowed")
 	}
 
 	// Second one should fail (would be 4th in last 2 seconds)
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || res.Allowed {
 		t.Errorf("Request 4 should have been rejected")
 	}
@@ -60,7 +60,7 @@ func TestSlidingWindowLogLimiter(t *testing.T) {
 
 	// Now we should have 1 active request in the window (the one at t=1s).
 	// Therefore, we should have 2 slots available.
-	res, err = rateLimiter.Allow(ctx, key, limit, window, 1)
+	res, err = allowHelper(rc, rateLimiter, ctx, key, limit, window, 1)
 	if err != nil || !res.Allowed {
 		t.Errorf("Request should have been allowed after first batch slid out")
 	}

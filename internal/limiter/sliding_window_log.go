@@ -13,20 +13,18 @@ import (
 
 // SlidingWindowLogLimiter implements the RateLimiter interface using a sliding window log algorithm.
 type SlidingWindowLogLimiter struct {
-	rc     *redis.Client
-	script *go_redis.Script
+	rc *redis.Client
 }
 
 // NewSlidingWindowLogLimiter creates a new SlidingWindowLogLimiter.
 func NewSlidingWindowLogLimiter(rc *redis.Client) *SlidingWindowLogLimiter {
 	return &SlidingWindowLogLimiter{
-		rc:     rc,
-		script: go_redis.NewScript(scripts.SlidingWindowLog),
+		rc: rc,
 	}
 }
 
-// Allow checks if the request is allowed based on the sliding window rate limit.
-func (l *SlidingWindowLogLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration, cost int) (Result, error) {
+// Queue adds the evaluation command to the pipeline.
+func (l *SlidingWindowLogLimiter) Queue(ctx context.Context, pipe go_redis.Pipeliner, key string, limit int, window time.Duration, cost int) *go_redis.Cmd {
 	windowMs := int(window.Milliseconds())
 	if windowMs <= 0 {
 		windowMs = 1000 // default to 1s if invalid
@@ -35,13 +33,16 @@ func (l *SlidingWindowLogLimiter) Allow(ctx context.Context, key string, limit i
 	nowMs := time.Now().UnixMilli()
 	baseID := uuid.New().String()
 
-	// Execute the Lua script
-	res, err := l.script.Run(ctx, l.rc.Rdb, []string{key}, limit, windowMs, nowMs, cost, baseID).Result()
+	return pipe.EvalSha(ctx, scripts.SlidingWindowLogSHA, []string{key}, limit, windowMs, nowMs, cost, baseID)
+}
+
+// Parse extracts the result from the executed pipeline command.
+func (l *SlidingWindowLogLimiter) Parse(cmd *go_redis.Cmd) (Result, error) {
+	res, err := cmd.Result()
 	if err != nil {
 		return Result{}, fmt.Errorf("redis script execution failed: %w", err)
 	}
 
-	// The Lua script returns {allowed, remaining, ttl_ms}
 	resultArr, ok := res.([]interface{})
 	if !ok || len(resultArr) != 3 {
 		return Result{}, fmt.Errorf("unexpected script result format: %v", res)

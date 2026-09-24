@@ -13,32 +13,32 @@ import (
 
 // FixedWindowLimiter implements the RateLimiter interface using a fixed window algorithm.
 type FixedWindowLimiter struct {
-	rc     *redis.Client
-	script *go_redis.Script
+	rc *redis.Client
 }
 
 // NewFixedWindowLimiter creates a new FixedWindowLimiter.
 func NewFixedWindowLimiter(rc *redis.Client) *FixedWindowLimiter {
 	return &FixedWindowLimiter{
-		rc:     rc,
-		script: go_redis.NewScript(scripts.FixedWindow),
+		rc: rc,
 	}
 }
 
-// Allow checks if the request is allowed based on the fixed window rate limit.
-func (l *FixedWindowLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration, cost int) (Result, error) {
+// Queue adds the evaluation command to the pipeline.
+func (l *FixedWindowLimiter) Queue(ctx context.Context, pipe go_redis.Pipeliner, key string, limit int, window time.Duration, cost int) *go_redis.Cmd {
 	windowSeconds := int(window.Seconds())
 	if windowSeconds <= 0 {
 		windowSeconds = 1 // Ensure at least 1 second
 	}
+	return pipe.EvalSha(ctx, scripts.FixedWindowSHA, []string{key}, limit, windowSeconds, cost)
+}
 
-	// Execute the Lua script
-	res, err := l.script.Run(ctx, l.rc.Rdb, []string{key}, limit, windowSeconds, cost).Result()
+// Parse extracts the result from the executed pipeline command.
+func (l *FixedWindowLimiter) Parse(cmd *go_redis.Cmd) (Result, error) {
+	res, err := cmd.Result()
 	if err != nil {
 		return Result{}, fmt.Errorf("redis script execution failed: %w", err)
 	}
 
-	// The Lua script returns {allowed, remaining, ttl_ms}
 	resultArr, ok := res.([]interface{})
 	if !ok || len(resultArr) != 3 {
 		return Result{}, fmt.Errorf("unexpected script result format: %v", res)

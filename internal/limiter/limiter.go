@@ -3,6 +3,8 @@ package limiter
 import (
 	"context"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Result represents the outcome of a rate-limit check.
@@ -13,7 +15,8 @@ type Result struct {
 	ResetAt    time.Time     `json:"resetAt"`    // exact time the window resets
 }
 
-// RateLimiter defines the interface for different rate-limiting algorithms.
+// RateLimiter defines the interface for different rate-limiting algorithms to support pipelining.
 type RateLimiter interface {
-	Allow(ctx context.Context, key string, limit int, window time.Duration, cost int) (Result, error)
+	Queue(ctx context.Context, pipe redis.Pipeliner, key string, limit int, window time.Duration, cost int) *redis.Cmd
+	Parse(cmd *redis.Cmd) (Result, error)
 }
