@@ -40,6 +40,7 @@ func main() {
 		"SLIDING_WINDOW_LOG":     limiter.NewSlidingWindowLogLimiter(rc),
 		"SLIDING_WINDOW_COUNTER": limiter.NewSlidingWindowCounterLimiter(rc),
 		"TOKEN_BUCKET":           limiter.NewTokenBucketLimiter(rc),
+		"LEAKY_BUCKET":           limiter.NewLeakyBucketLimiter(rc),
 	}
 
 	// Initialize Handlers

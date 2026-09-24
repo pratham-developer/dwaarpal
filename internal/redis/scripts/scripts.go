@@ -13,3 +13,6 @@ var TokenBucket string
 
 //go:embed sliding_window_counter.lua
 var SlidingWindowCounter string
+
+//go:embed leaky_bucket.lua
+var LeakyBucket string
