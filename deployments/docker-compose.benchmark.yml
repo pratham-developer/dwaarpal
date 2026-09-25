@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  dwaarpal-api:
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      - REDIS_ADDRESS=dwaarpal-redis:6379
+      - REDIS_TIMEOUT_MS=1000
+      - L1_CACHE_SIZE=100000
+      - MAX_BATCH_SIZE=100
+    depends_on:
+      - dwaarpal-redis
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '0.5' # Hard CPU limit to prevent thread starvation during local benchmark scaling
+          memory: 200M
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - dwaarpal-api
+      
+  dwaarpal-redis:
+    image: redis:7.0-alpine
+    ports:
+      - "6379:6379"
+
+  dwaarpal-prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  dwaarpal-grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - dwaarpal-prometheus

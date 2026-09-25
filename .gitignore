@@ -25,3 +25,7 @@ dwaarpal
 # IDEs
 .idea/
 .vscode/
+
+# Benchmark outputs
+benchmark/*.json
+dwaarpal-api

@@ -122,6 +122,13 @@ Run the entire cluster stack (API + Redis Cluster + Observability):
 docker-compose -f deployments/docker-compose.cluster.yml up -d --build
 ```
 
+### Option 3: Load-Balanced Benchmark Architecture
+To test horizontal scaling and Nginx load balancing over multiple Dwaarpal replicas hitting a single Redis node, use the benchmark architecture. This exposes Nginx on port `80`.
+
+```bash
+docker-compose -f deployments/docker-compose.benchmark.yml up -d --scale dwaarpal-api=3 --build
+```
+
 ---
 
 ## 🏢 Enterprise Deployment (BYOI)
@@ -134,6 +141,8 @@ If a Platform Engineering team wants to deploy Dwaarpal in their private cloud a
 docker run -d \
   -p 8080:8080 \
   -p 50051:50051 \
+  -e PORT="8080" \
+  -e GRPC_PORT="50051" \
   -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
   -e REDIS_TIMEOUT_MS="50" \
   ghcr.io/pratham-developer/dwaarpal:latest
@@ -204,7 +213,8 @@ Dwaarpal is configured strictly through environment variables to align with 12-F
 
 | Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PORT` | `8080` | The HTTP REST Port. (gRPC runs hardcoded on `50051`) |
+| `PORT` | `8080` | The HTTP REST Port. |
+| `GRPC_PORT` | `50051` | The gRPC Port. |
 | `REDIS_ADDRESS` | `localhost:6379` | Supports standalone (`ip:port`), cluster (`ip1:port1,ip2:port2`), or TLS (`rediss://...`) |
 | `REDIS_TIMEOUT_MS` | `50` | Maximum allowed latency per pipeline before triggering Fail-Closed abortion. |
 | `L1_CACHE_SIZE` | `100000` | Max items in the local RAM Penalty Box. (~15MB overhead at max capacity). |

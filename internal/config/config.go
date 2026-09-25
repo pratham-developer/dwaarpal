@@ -9,6 +9,7 @@ import (
 // Config holds the application configuration.
 type Config struct {
 	Port         string
+	GrpcPort     string
 	RedisAddress string
 	RedisTimeout time.Duration
 	L1CacheSize  int
@@ -51,8 +52,14 @@ func LoadConfig() Config {
 		}
 	}
 
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50051"
+	}
+
 	return Config{
 		Port:         port,
+		GrpcPort:     grpcPort,
 		RedisAddress: redisAddr,
 		RedisTimeout: time.Duration(timeoutMs) * time.Millisecond,
 		L1CacheSize:  l1CacheSize,

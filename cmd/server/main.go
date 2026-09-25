@@ -80,11 +80,11 @@ func main() {
 
 	// Start gRPC Server
 	go func() {
-		lis, err := net.Listen("tcp", ":50051")
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%s", cfg.GrpcPort))
 		if err != nil {
-			log.Fatalf("failed to listen on :50051: %v", err)
+			log.Fatalf("failed to listen on :%s: %v", cfg.GrpcPort, err)
 		}
-		log.Printf("Starting gRPC server on :50051")
+		log.Printf("Starting gRPC server on :%s", cfg.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("gRPC server failed: %v", err)
 		}
