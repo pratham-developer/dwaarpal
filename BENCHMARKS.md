@@ -1,6 +1,6 @@
 # Dwaarpal Architecture & Performance Benchmarks
 
-This document details the rigorous empirical testing and mathematical benchmarking of the Dwaarpal architecture. The primary objective is to prove the correctness, latency profile, and throughput capacity of the system under extreme load and simulated catastrophic failure scenarios.
+This document details the rigorous empirical benchmarking and correctness testing of the Dwaarpal architecture. The primary objective is to evaluate the correctness, latency profile, and throughput capacity of the system under extreme load and simulated catastrophic failure scenarios.
 
 ```text
                     Dwaarpal
@@ -21,7 +21,7 @@ Load generation was conducted against the `dwaarpal-api` nodes utilizing Grafana
 ### 1.1 Single Node Baseline (1 API -> 1 Redis Cluster)
 * **Concurrent Virtual Users (VUs):** 300
 * **Total HTTP Requests Analyzed:** 258,092
-* **Observed Throughput:** ~6,451 HTTP Requests/sec (Unbatched single-key evaluation)
+* **Observed Throughput:** sustained over 6,400 HTTP requests/sec with 300 concurrent VUs (Unbatched single-key evaluation)
 * **Latency Profile:**
   * **Mean:** 10.04 ms
   * **Median (p50):** 6.2 ms
@@ -29,9 +29,9 @@ Load generation was conducted against the `dwaarpal-api` nodes utilizing Grafana
   * **p95:** 29.73 ms
   * **p99:** 56.26 ms
 * **Success Rate:** 99.95% 
-* **Observations:** This represents the raw baseline HTTP server performance over a local Docker bridge network. The API node successfully sustained over 6,400 concurrent TCP connections per second while maintaining a highly stable p50 latency of 6.2ms without utilizing batching optimizations.
+* **Observations:** This represents the raw baseline HTTP server performance over a local Docker bridge network. The API node successfully sustained over 6,400 HTTP requests/sec with 300 concurrent VUs while maintaining a highly stable p50 latency of 6.2ms without utilizing batching optimizations.
 
-### 1.2 Horizontal Scaling Efficiency (Simulated Cluster)
+### 1.2 Constrained Single-Host Scaling Experiment
 * **Architecture:** 1 Nginx Load Balancer ➔ `N` Go API Nodes (Strict 0.5 CPU limit per node) ➔ 1 Redis Node.
 * **Objective:** Quantify horizontal scaling efficiency across 1, 2, 4, and 8 API nodes on a single physical host.
 
@@ -43,15 +43,15 @@ Load generation was conducted against the `dwaarpal-api` nodes utilizing Grafana
 | 8     | 4,256              | 13.27    | 56.68    | 19.2%              |
 
 * **Architectural Analysis:** 
-Observe the **Scaling Efficiency** metric. By strictly limiting each API node to 0.5 CPU cores, this test effectively demonstrates the consequences of vertically scaling stateless containerized applications on a constrained host. The overhead of software-defined network routing (Nginx ➔ Docker ➔ Go ➔ Docker ➔ Redis), combined with intense CPU scheduler context switching, rapidly induces thread starvation. Linear scaling efficiency is immediately compromised. 
+Observe the **Scaling Efficiency** metric. By strictly limiting each API node to 0.5 CPU cores, this test effectively demonstrates the consequences of vertically scaling stateless containerized applications on a constrained host. The software-defined network path and constrained CPU allocation introduce significant scheduling and network contention, compromising linear scaling efficiency.
 
-To achieve linear horizontal scaling in production environments, `dwaarpal-api` replicas must be distributed across physically distinct hardware (e.g., independent Kubernetes worker nodes) where inter-container network bridging is offloaded to hardware switches.
+To evaluate true horizontal scaling, replicas should be distributed across independent VMs or Kubernetes worker nodes, avoiding single-host CPU and network contention.
 
 ---
 
 ## 2. Latency Optimization (L1 Cache vs. Redis Subsystem)
 
-The efficacy of an edge rate-limiter is strictly governed by its latency profile. The microsecond breakdown of the evaluation path is detailed below:
+The efficacy of an edge rate-limiter is strongly influenced by its latency profile. The latency breakdown of the evaluation path is detailed below:
 
 | Execution Phase | Data Path | p50 Latency | p95 Latency | p99 Latency |
 |-----------------|-----------|-------------|-------------|-------------|
@@ -73,14 +73,14 @@ The efficacy of an edge rate-limiter is strictly governed by its latency profile
 | 99%                | 5,190        | 7.95     | 45.22    | 52                 | 99%               |
 
 * **Architectural Analysis:** 
-The L1 caching tier is Dwaarpal's primary optimization mechanism for mitigating hot-key imbalances (e.g., volumetric DDoS attacks originating from a single subnet). When the cache hit rate approaches 90%, total system throughput functionally doubles (from 4.5k to 8.4k Req/s) while simultaneously shedding over 80% of network I/O from the Redis cluster. Execution latency drops significantly due to the Go runtime resolving quotas from local heap memory rather than initiating TCP roundtrips. 
-*(Note: The observed throughput regression at a 99% hit rate is a known artifact of the load-testing host bottlenecking on Nginx TCP connection limits rather than the API logic itself).*
+The L1 caching tier is Dwaarpal's primary optimization mechanism for mitigating hot-key or abuse traffic where many requests repeatedly target the same rate-limit key. When the cache hit rate approaches 90%, observed throughput increased from ~4.6K to ~8.4K req/s while simultaneously shedding over 80% of network I/O from the Redis cluster. Execution latency drops significantly due to the Go runtime resolving quotas from local heap memory rather than initiating TCP roundtrips. 
+*(Note: The observed throughput regression at a 99% hit rate appears to be constrained by the load-testing/proxy environment; further profiling is required to isolate the bottleneck.)*
 
 ---
 
 ## 3. Algorithmic Correctness Under High Concurrency
 
-To empirically prove mathematical correctness, `10,000` concurrent requests were generated to consume a configured quota limit of exactly `100` tokens across `3` separate API nodes simultaneously.
+To empirically validate concurrent correctness, `2,000` concurrent requests were generated to consume a configured quota limit of exactly `100` tokens across `3` separate API nodes simultaneously.
 
 **Empirical Results:**
 * **Testing Methodology:** A native Go binary spawning 2,000 synchronized goroutines to simultaneously access a single key utilizing the `FIXED_WINDOW` algorithm.
@@ -88,7 +88,7 @@ To empirically prove mathematical correctness, `10,000` concurrent requests were
 * **Actual Allowed:** 100
 * **Expected Denied:** 1900
 * **Actual Denied:** 1900
-* **Result:** **Mathematically Verified.** Despite severe TCP socket contention and race conditions at the API layer, the Redis Lua pipeline safely decremented the atomic integer without fail, completely eliminating distributed race conditions.
+* **Result:** **Empirically validated with zero observed limit violations.** Despite severe TCP socket contention and race conditions at the API layer, the Redis Lua pipeline safely decremented the atomic integer without fail, demonstrating atomic enforcement without observed distributed race violations.
 
 ### 3.1 Theoretical Limits & Hardware Saturation
 
@@ -101,28 +101,28 @@ A **Bare-Metal Scaling Test** was executed by compiling the Dwaarpal binaries na
 | 4                     | 15,131             | 10.20    | 34.78    | Contended             |
 
 **Architectural Analysis:** 
-A single native Dwaarpal node is sufficiently optimized to process **17,100 requests per second** natively on an ARM64 CPU. However, at this threshold, the node completely saturates the single-threaded Redis engine. Introducing additional API nodes natively produces *negative* scaling efficiency, as the additional TCP connections generate socket contention against a fully utilized Redis process. 
+The end-to-end setup sustained **17,100 requests per second** with a single native Dwaarpal node, at which point Redis became the primary throughput bottleneck. Introducing additional API nodes natively produces *negative* scaling efficiency, as additional API nodes did not increase throughput because Redis was already the primary bottleneck. 
 
-To exceed 17,100 Req/s linearly, the limiting factor transitions from the Go API to the data store. This necessitates deploying a sharded topology (via `docker-compose.cluster.yml`) to partition the lock contention across multiple physical Redis processes.
+To scale beyond the observed 17,100 Req/s ceiling, the limiting factor transitions from the Go API to the data store. This necessitates deploying a sharded topology (via `docker-compose.cluster.yml`) to partition the lock contention across multiple physical Redis processes.
 
 ---
 
-## 4. Subsystem Failure & Autonomous Recovery
+## 4. Redis Outage & Recovery Testing
 
-To characterize system behavior during severe network partitions or hardware failures, a continuous high-frequency HTTP prober was deployed. Concurrently, the Redis container was violently terminated (`docker kill dwaarpal-redis`), followed by a 5-second simulated outage, and subsequently restarted.
+To characterize system behavior during Redis process failure and recovery, a continuous high-frequency HTTP prober was deployed. Concurrently, the Redis container was violently terminated (`docker kill dwaarpal-redis`), followed by a 5-second simulated outage, and subsequently restarted.
 
 **Empirical Results:**
 * **Failure State Entry:** The precise millisecond the Redis TCP socket collapsed, the API instantaneously detected the pipeline failure and safely degraded, transitioning HTTP responses from `200 OK` to `503 Service Unavailable` per the Fail-Closed directive.
 * **Recovery Timing:**
   * Redis restart command was issued exactly 5,000 ms after the initial termination.
   * The continuous prober transitioned from `503 Service Unavailable` back to `200 OK` exactly **5,381 ms** after the initial termination.
-* **Result:** **Total Recovery Achieved.** Excluding the deliberate 5-second outage, total detection and healing time was **< 400 milliseconds**. Dwaarpal detected the broken socket, re-established the connection pool, executed `PreWarmAndSelfHeal()` to re-upload the pre-compiled Lua bytecode, and resumed traffic evaluation in under half a second.
+* **Result:** **Recovery observed after Redis restart.** Excluding the deliberate 5-second outage, total detection and healing time was **< 400 milliseconds**. Dwaarpal detected the broken socket, re-established the connection pool, executed `PreWarmAndSelfHeal()` to re-upload the pre-compiled Lua bytecode, and resumed traffic evaluation ~381 ms after Redis became available.
 
 ---
 
 ## 5. Soak Testing & Long-Term Stability
 
-To validate against memory leaks, goroutine exhaustion, and file-descriptor saturation, a continuous **1-Hour Soak Test** was administered.
+To look for signs of memory leaks, goroutine exhaustion, and file-descriptor saturation, a continuous **1-Hour Soak Test** was administered.
 
 * **Architecture:** 1 Nginx LB ➔ 3 Dwaarpal API Nodes ➔ 1 Redis Cluster
 * **Load Profile:** A flat, sustained 500 Requests/Second using k6 (`constant-arrival-rate` executor).
@@ -130,4 +130,10 @@ To validate against memory leaks, goroutine exhaustion, and file-descriptor satu
 * **Thresholds:** `< 1% Total Error Rate`
 
 **Conclusion:** 
-By leveraging the Go runtime's optimized Garbage Collector, enforcing strict context timeouts, and delegating state strictly to bounded-memory LRU caches (`L1_CACHE_SIZE`) and Redis, the memory footprint of the API instances remained entirely flat. Redis memory utilization remained constrained due to mathematically enforced TTL bounds embedded directly in the Lua logic. The system architecture is structurally sound for indefinite execution without state degradation.
+No observed memory, goroutine-count, or error-rate degradation occurred during the 1-hour, 1.8M-operation soak test. By leveraging the Go runtime's Garbage Collector, enforcing strict context timeouts, and delegating state strictly to bounded-memory LRU caches (`L1_CACHE_SIZE`) and Redis, the memory footprint of the API instances remained flat. Redis memory utilization remained constrained due to enforced TTL bounds embedded directly in the Lua logic. 
+
+---
+
+## Conclusion
+
+The benchmark suite empirically validates Dwaarpal's distributed rate-limiting behavior under concurrent load, measures its latency and throughput characteristics, demonstrates the benefit of L1 penalty caching, and identifies Redis throughput as the primary bottleneck at higher request rates. Failure and recovery testing showed fail-closed behavior during Redis outages, while the 1-hour soak test showed no observed memory, goroutine, or error-rate degradation.

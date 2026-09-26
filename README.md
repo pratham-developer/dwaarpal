@@ -155,6 +155,8 @@ docker run -d \
 Dwaarpal processes batches of descriptors in a single call. You can rate limit by IP, User ID, and API Route concurrently.
 
 ### HTTP (REST) - Port 8080
+
+#### Check Rate Limit
 ```bash
 curl -X POST http://localhost:8080/v1/check \
      -H "Content-Type: application/json" \
@@ -180,6 +182,18 @@ curl -X POST http://localhost:8080/v1/check \
   "remaining": 0,
   "retry_after": 3600000,
   "reset_at": "2026-09-24T17:22:09Z"
+}
+```
+
+#### Health Check (Liveness Probe)
+```bash
+curl http://localhost:8080/health
+```
+**Response**:
+```json
+{
+  "status": "ok",
+  "redis": "connected"
 }
 ```
 
