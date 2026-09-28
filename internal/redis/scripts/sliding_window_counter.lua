@@ -1,14 +1,15 @@
 -- KEYS[1]: The rate limit key
 -- ARGV[1]: limit
 -- ARGV[2]: window in milliseconds
--- ARGV[3]: current timestamp in milliseconds
--- ARGV[4]: request cost
+-- ARGV[3]: request cost
 
 local key = KEYS[1]
 local limit = tonumber(ARGV[1])
 local window_ms = tonumber(ARGV[2])
-local now_ms = tonumber(ARGV[3])
-local cost = tonumber(ARGV[4])
+local cost = tonumber(ARGV[3])
+
+local time_arr = redis.call("TIME")
+local now_ms = tonumber(time_arr[1]) * 1000 + math.floor(tonumber(time_arr[2]) / 1000)
 
 -- Calculate the absolute start boundary of the current window
 local curr_window_start = now_ms - (now_ms % window_ms)

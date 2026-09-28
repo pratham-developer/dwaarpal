@@ -30,10 +30,9 @@ func (l *SlidingWindowLogLimiter) Queue(ctx context.Context, pipe go_redis.Pipel
 		windowMs = 1000 // default to 1s if invalid
 	}
 
-	nowMs := time.Now().UnixMilli()
 	baseID := uuid.New().String()
 
-	return pipe.EvalSha(ctx, scripts.SlidingWindowLogSHA, []string{key}, limit, windowMs, nowMs, cost, baseID)
+	return pipe.EvalSha(ctx, scripts.SlidingWindowLogSHA, []string{key}, limit, windowMs, cost, baseID)
 }
 
 // Parse extracts the result from the executed pipeline command.

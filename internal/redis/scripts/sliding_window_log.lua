@@ -1,16 +1,17 @@
 -- KEYS[1]: The rate limit key
 -- ARGV[1]: limit
 -- ARGV[2]: window in milliseconds
--- ARGV[3]: current timestamp in milliseconds
--- ARGV[4]: request cost
--- ARGV[5]: unique request ID base
+-- ARGV[3]: request cost
+-- ARGV[4]: unique request ID base
 
 local key = KEYS[1]
 local limit = tonumber(ARGV[1])
 local window_ms = tonumber(ARGV[2])
-local now_ms = tonumber(ARGV[3])
-local cost = tonumber(ARGV[4])
-local base_id = ARGV[5]
+local cost = tonumber(ARGV[3])
+local base_id = ARGV[4]
+
+local time_arr = redis.call("TIME")
+local now_ms = tonumber(time_arr[1]) * 1000 + math.floor(tonumber(time_arr[2]) / 1000)
 
 local window_start = now_ms - window_ms
 

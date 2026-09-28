@@ -29,8 +29,7 @@ func (l *SlidingWindowCounterLimiter) Queue(ctx context.Context, pipe go_redis.P
 	if windowMs <= 0 {
 		windowMs = 1000 // Ensure at least 1 second
 	}
-	nowMs := time.Now().UnixMilli()
-	return pipe.EvalSha(ctx, scripts.SlidingWindowCounterSHA, []string{key}, limit, windowMs, nowMs, cost)
+	return pipe.EvalSha(ctx, scripts.SlidingWindowCounterSHA, []string{key}, limit, windowMs, cost)
 }
 
 // Parse extracts the result from the executed pipeline command.

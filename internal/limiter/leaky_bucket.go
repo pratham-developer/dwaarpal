@@ -29,8 +29,7 @@ func (l *LeakyBucketLimiter) Queue(ctx context.Context, pipe go_redis.Pipeliner,
 	if windowMs <= 0 {
 		windowMs = 1000 // default to 1s if invalid
 	}
-	nowMs := time.Now().UnixMilli()
-	return pipe.EvalSha(ctx, scripts.LeakyBucketSHA, []string{key}, limit, windowMs, nowMs, cost)
+	return pipe.EvalSha(ctx, scripts.LeakyBucketSHA, []string{key}, limit, windowMs, cost)
 }
 
 // Parse extracts the result from the executed pipeline command.
