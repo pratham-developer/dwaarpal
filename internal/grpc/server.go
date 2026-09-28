@@ -133,7 +133,7 @@ func (s *Server) CheckRateLimit(ctx context.Context, req *proto.CheckRateLimitRe
 
 		_, err := pipe.Exec(timeoutCtx)
 		if err != nil && err != go_redis.Nil {
-			if err.Error() == "NOSCRIPT No matching script. Please use EVAL." && attempt < maxRetries {
+			if go_redis.HasErrorPrefix(err, "NOSCRIPT") && attempt < maxRetries {
 				slog.Warn("gRPC NOSCRIPT detected in pipeline! Triggering Self-Healing Pre-Warm...")
 				metrics.RedisErrorsTotal.WithLabelValues("MULTI_NOSCRIPT").Inc()
 				

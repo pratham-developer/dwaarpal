@@ -179,7 +179,7 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 		_, err := pipe.Exec(ctx)
 		if err != nil && err != go_redis.Nil {
 			// Self-Healing Mechanism for NOSCRIPT
-			if err.Error() == "NOSCRIPT No matching script. Please use EVAL." && attempt < maxRetries {
+			if go_redis.HasErrorPrefix(err, "NOSCRIPT") && attempt < maxRetries {
 				slog.Warn("NOSCRIPT detected in pipeline! Triggering Self-Healing Pre-Warm...")
 				metrics.RedisErrorsTotal.WithLabelValues("MULTI_NOSCRIPT").Inc()
 				
