@@ -22,10 +22,11 @@ type Handler struct {
 	Timeout      time.Duration
 	L1Cache      *lru.Cache[string, time.Time]
 	MaxBatchSize int
+	FailOpen     bool
 }
 
 // NewHandler creates a new Handler.
-func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter, timeout time.Duration, l1CacheSize int, maxBatchSize int) *Handler {
+func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter, timeout time.Duration, l1CacheSize int, maxBatchSize int, failOpen bool) *Handler {
 	cache, _ := lru.New[string, time.Time](l1CacheSize)
 	return &Handler{
 		RedisClient:  rc,
@@ -33,6 +34,7 @@ func NewHandler(rc *redis.Client, limiters map[string]limiter.RateLimiter, timeo
 		Timeout:      timeout,
 		L1Cache:      cache,
 		MaxBatchSize: maxBatchSize,
+		FailOpen:     failOpen,
 	}
 }
 
@@ -137,6 +139,7 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 	// Phase B & C: Pipeline Queueing & Cluster-Aware Execution
 	var queuedChecks []QueuedCheck
 	var pipe go_redis.Pipeliner
+	var pipelineErr error
 	
 	maxRetries := 1
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -176,10 +179,10 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	
-		_, err := pipe.Exec(ctx)
-		if err != nil && err != go_redis.Nil {
+		_, pipelineErr = pipe.Exec(ctx)
+		if pipelineErr != nil && pipelineErr != go_redis.Nil {
 			// Self-Healing Mechanism for NOSCRIPT
-			if go_redis.HasErrorPrefix(err, "NOSCRIPT") && attempt < maxRetries {
+			if go_redis.HasErrorPrefix(pipelineErr, "NOSCRIPT") && attempt < maxRetries {
 				slog.Warn("NOSCRIPT detected in pipeline! Triggering Self-Healing Pre-Warm...")
 				metrics.RedisErrorsTotal.WithLabelValues("MULTI_NOSCRIPT").Inc()
 				
@@ -190,26 +193,20 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 				continue // Retry loop will rebuild and re-execute pipeline
 			}
 			
-			// If it's still an error after retries (or a different error like timeout)
-			metrics.RedisErrorsTotal.WithLabelValues("MULTI_FAIL_CLOSED").Inc()
-			slog.Error("Pipeline execution failed (Fail Closed)", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(CheckMultiResponse{
-				Allowed:   false,
-				Remaining: 0,
-			})
-			return
+			// DO NOT SHORT-CIRCUIT! Proceed to Best-Effort Parsing Phase to catch surviving blocks.
 		}
 		
-		break // Success, break the retry loop
+		break // Success or non-retryable error, break the retry loop
 	}
 	metrics.DecisionLatency.WithLabelValues("MULTI_PIPELINE").Observe(time.Since(start).Seconds())
 
-	// Phase D: Parsing & The "All-or-Nothing" Blackbox
+	// Phase D: Parsing & Best-Effort Evaluation
 	var failedResult *limiter.Result
 	var failedL1Key string
 	minRemaining := -1
+	
+	// Track if we had any infrastructure/parse errors during evaluation
+	hadInfraError := pipelineErr != nil && pipelineErr != go_redis.Nil
 	
 	// Collect all failures to populate L1 cache comprehensively
 	type FailedRecord struct {
@@ -219,14 +216,18 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 	var allFailures []FailedRecord
 
 	for _, q := range queuedChecks {
+		// If the command itself failed during pipeline execution, skip parsing.
+		if q.Cmd.Err() != nil && q.Cmd.Err() != go_redis.Nil {
+			hadInfraError = true
+			continue
+		}
+
 		res, err := q.Limiter.Parse(q.Cmd)
 		if err != nil {
 			metrics.RedisErrorsTotal.WithLabelValues("MULTI_PARSE_ERROR").Inc()
 			slog.Error("Failed to parse pipeline result", "error", err, "key", q.Descriptor.Key)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(CheckMultiResponse{Allowed: false, Remaining: 0})
-			return
+			hadInfraError = true
+			continue // Skip this one, but keep evaluating others for potential BLOCKS!
 		}
 
 		if !res.Allowed {
@@ -252,9 +253,10 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. Aggregate Results and Populate Cache
+	// 3. Aggregate Results and Terminal Decision
 	w.Header().Set("Content-Type", "application/json")
 
+	// 1. A Definitive Block Trumps Everything!
 	if failedResult != nil {
 		metrics.RequestsTotal.WithLabelValues("MULTI", "false").Inc()
 
@@ -276,6 +278,31 @@ func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 2. We didn't find any blocks, but an infrastructure error occurred (partial or full).
+	if hadInfraError {
+		if h.FailOpen {
+			slog.Warn("Pipeline execution failed (Fail Open - Allowing Traffic)", "error", pipelineErr)
+			metrics.FailOpenTotal.Inc()
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(CheckMultiResponse{
+				Allowed:   true,
+				Remaining: 9999,
+				ResetAt:   time.Now().UTC().Format(time.RFC3339),
+			})
+			return
+		}
+		
+		metrics.RedisErrorsTotal.WithLabelValues("MULTI_FAIL_CLOSED").Inc()
+		slog.Error("Pipeline execution failed (Fail Closed)", "error", pipelineErr)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		json.NewEncoder(w).Encode(CheckMultiResponse{
+			Allowed:   false,
+			Remaining: 0,
+		})
+		return
+	}
+
+	// 3. Perfect Success!
 	metrics.RequestsTotal.WithLabelValues("MULTI", "true").Inc()
 	slog.Info("Multi-Key rate limit decision", "allowed", true, "min_remaining", minRemaining)
 

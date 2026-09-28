@@ -14,6 +14,7 @@ type Config struct {
 	RedisTimeout time.Duration
 	L1CacheSize  int
 	MaxBatchSize int
+	FailOpen     bool
 }
 
 // LoadConfig loads configuration from environment variables with sensible defaults.
@@ -57,6 +58,8 @@ func LoadConfig() Config {
 		grpcPort = "50051"
 	}
 
+	failOpen := os.Getenv("FAIL_OPEN") == "true"
+
 	return Config{
 		Port:         port,
 		GrpcPort:     grpcPort,
@@ -64,5 +67,6 @@ func LoadConfig() Config {
 		RedisTimeout: time.Duration(timeoutMs) * time.Millisecond,
 		L1CacheSize:  l1CacheSize,
 		MaxBatchSize: maxBatchSize,
+		FailOpen:     failOpen,
 	}
 }

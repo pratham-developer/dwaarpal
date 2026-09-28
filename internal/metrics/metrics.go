@@ -32,6 +32,14 @@ var (
 		},
 		[]string{"algorithm"},
 	)
+
+	// FailOpenTotal tracks the number of requests allowed due to Fail-Open strategy.
+	FailOpenTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "rate_limit_fail_open_total",
+			Help: "Total number of rate limit requests bypassed due to Fail-Open strategy.",
+		},
+	)
 )
 
 // Init registers all metrics with Prometheus.
@@ -39,4 +47,5 @@ func Init() {
 	prometheus.MustRegister(RequestsTotal)
 	prometheus.MustRegister(DecisionLatency)
 	prometheus.MustRegister(RedisErrorsTotal)
+	prometheus.MustRegister(FailOpenTotal)
 }

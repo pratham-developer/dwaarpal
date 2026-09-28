@@ -12,6 +12,7 @@ services:
       - PORT=8080
       - REDIS_ADDRESS=redis-cluster:7010,redis-cluster:7011,redis-cluster:7012,redis-cluster:7013,redis-cluster:7014,redis-cluster:7015
       - REDIS_TIMEOUT_MS=1000
+      - FAIL_OPEN=false
     depends_on:
       - redis-cluster
   redis-cluster:

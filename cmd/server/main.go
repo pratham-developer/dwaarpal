@@ -65,7 +65,7 @@ func main() {
 	}
 
 	// Initialize Handlers
-	h := handler.NewHandler(rc, limiters, cfg.RedisTimeout, cfg.L1CacheSize, cfg.MaxBatchSize)
+	h := handler.NewHandler(rc, limiters, cfg.RedisTimeout, cfg.L1CacheSize, cfg.MaxBatchSize, cfg.FailOpen)
 
 	// Setup Routes
 	mux := http.NewServeMux()
@@ -75,7 +75,7 @@ func main() {
 
 	// Setup gRPC Server
 	grpcServer := grpc.NewServer()
-	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(rc, limiters, cfg.RedisTimeout, h.L1Cache, cfg.MaxBatchSize))
+	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(rc, limiters, cfg.RedisTimeout, h.L1Cache, cfg.MaxBatchSize, cfg.FailOpen))
 	reflection.Register(grpcServer)
 
 	// Start gRPC Server

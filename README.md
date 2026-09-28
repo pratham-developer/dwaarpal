@@ -47,7 +47,7 @@ This means you can spin up 1,000 Dwaarpal containers side-by-side behind an AWS 
 ### 2. The Race Condition Problem (Lua Atomicity)
 **The Problem**: If a user has exactly 1 token left in their quota, and they maliciously blast your API with 50 parallel requests at the exact same millisecond, those requests will hit 50 different Dwaarpal nodes simultaneously. If the nodes read the Redis value ("Tokens = 1"), subtract it in Go ("Tokens = 0"), and write it back, all 50 nodes would see "Tokens = 1" and allow the request. You would have allowed 50 requests instead of 1.
 
-**The Solution**: Dwaarpal completely bypasses this by shipping the algorithmic logic directly to the database via **Lua Scripts**. When the 50 nodes receive the requests, they fire a Lua script at the Redis Master. Because the Redis core engine is single-threaded, it executes these Lua scripts **atomically** in a queue. Exactly 1 script will read the token and subtract it. The other 49 will instantly fail. Zero race conditions.
+**The Solution**: Dwaarpal completely bypasses this by shipping the algorithmic logic directly to the database via **Lua Scripts**. When the 50 nodes receive the requests, they fire a Lua script at the Redis Master. Because the Redis core engine is single-threaded, it executes these Lua scripts **atomically** in a queue. Exactly 1 script will read the token and subtract it. The other 49 will instantly fail. Zero race conditions. Furthermore, Dwaarpal guarantees **Clock Synchrony** by fetching time via `redis.call('TIME')` directly inside the Lua engine, rendering the system impervious to NTP drift across the Go containers.
 
 ### 3. Eliminating the SPOF (Sharding & Replication)
 Using a single Redis node creates a massive Single Point of Failure (SPOF) and a network bottleneck. Dwaarpal is engineered to run against a **Redis Cluster**.
@@ -65,16 +65,18 @@ Dwaarpal allows API Gateways to submit a batch array of rate limits in a single 
    When a batch of keys arrives, Dwaarpal loops through them locally in RAM. If **EVEN ONE** key is found in the local L1 Penalty Box, the entire payload is instantly short-circuited and rejected with HTTP 429. **Exactly 0 network calls are made.**
 3. **Phase 3: Pipeline Queueing & Execution**
    If the L1 Cache is bypassed, Dwaarpal buffers the `EVALSHA` commands into a Redis Pipeline in memory. The `go-redis` client mathematically groups the keys by their physical shards and sends concurrent, bundled TCP packets. Multiple keys mapping to the same shard are executed in a single network roundtrip.
-4. **Phase 4: Parsing & The "All-or-Nothing" Blackbox**
-   Dwaarpal extracts the pipeline results. If *any* key in the batch failed, Dwaarpal identifies **every single failed key** and independently adds all of them to the local L1 Penalty Box. It then aggregates the data, returning the most restrictive `RetryAfter` time to the Gateway.
+4. **Phase 4: Best-Effort Partial Evaluation**
+   Dwaarpal extracts the pipeline results. If a specific physical shard fails during the execution, Dwaarpal implements **Best-Effort Evaluation**. It parses the surviving shards first. If any surviving shard issues a definitive rejection (`Allowed: false`), Dwaarpal instantly blocks the user (HTTP 429), prioritizing strict protection. It only relies on the configured `FAIL_OPEN`/`FAIL_CLOSED` fallback if a shard is dead and no definitive block was found. It then populates the L1 Penalty Box with all blocked signatures to short-circuit future attacks locally.
 
 ### 5. Production-Ready Safety Mechanisms
 
 #### The NOSCRIPT Dynamic Self-Healing
-If a Redis Node crashes and reboots, its RAM is wiped, meaning the Lua Scripts disappear. Executing a pipeline will result in a `NOSCRIPT` error. Instead of dropping the request, Dwaarpal's engine intercepts this error, dynamically fires a background thread to reload the scripts into the cluster, and seamlessly retries the pipeline execution without dropping the user's connection.
+If a Redis Node crashes and reboots, its RAM is wiped, meaning the Lua Scripts disappear. Executing a pipeline will result in a `NOSCRIPT` error. Instead of dropping the request, Dwaarpal's engine intercepts this error using **type-safe Redis error prefix validation**, dynamically fires a background thread to reload the scripts into the cluster, and seamlessly retries the pipeline execution without dropping the user's connection.
 
-#### Fail-Closed Protection
-Dwaarpal employs a strict **Fail-Closed Strategy**. If a pipeline takes longer than the configured `REDIS_TIMEOUT_MS`, Dwaarpal instantly aborts the request, sheds the load, and returns a `500 Internal Error` (reverting to failsafe mode). Your infrastructure stays completely healthy.
+#### Resilient Failure Strategies (Fail-Open vs Fail-Closed)
+If a pipeline encounters a catastrophic cluster timeout or total failure, Dwaarpal sheds the load based on the operator's strict configuration via `FAIL_OPEN`.
+- **Fail-Closed (Default):** Protection over Availability. Aborts the request, sheds the load, and returns a `503 Service Unavailable`.
+- **Fail-Open:** Availability over Quota. If the Redis Cluster is entirely unreachable, Dwaarpal logs the infrastructure outage but allows the API traffic through with a `200 OK`, ensuring your business stays online even if rate limits cannot be strictly enforced.
 
 #### Two-Tier Rate Limiting (The L1 Blackbox Cache)
 To protect the Redis cluster from devastating DDoS attacks that attempt to breach rate limits concurrently, Dwaarpal implements an aggressive **Two-Tier Negative Caching** architecture directly in Go memory.
@@ -145,6 +147,7 @@ docker run -d \
   -e GRPC_PORT="50051" \
   -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
   -e REDIS_TIMEOUT_MS="50" \
+  -e FAIL_OPEN="false" \
   ghcr.io/pratham-developer/dwaarpal:latest
 ```
 
@@ -230,7 +233,8 @@ Dwaarpal is configured strictly through environment variables to align with 12-F
 | `PORT` | `8080` | The HTTP REST Port. |
 | `GRPC_PORT` | `50051` | The gRPC Port. |
 | `REDIS_ADDRESS` | `localhost:6379` | Supports standalone (`ip:port`), cluster (`ip1:port1,ip2:port2`), or TLS (`rediss://...`) |
-| `REDIS_TIMEOUT_MS` | `50` | Maximum allowed latency per pipeline before triggering Fail-Closed abortion. |
+| `REDIS_TIMEOUT_MS` | `50` | Maximum allowed latency per pipeline before triggering terminal failure. |
+| `FAIL_OPEN` | `false` | If `true`, allows traffic to bypass the rate limiter during a complete Redis outage (Availability over Quota). If `false`, returns 503 (Protection over Availability). |
 | `L1_CACHE_SIZE` | `100000` | Max items in the local RAM Penalty Box. (~15MB overhead at max capacity). |
 | `MAX_BATCH_SIZE` | `100` | Max number of keys allowed in a single payload. Protects against memory exhaustion. |
 
