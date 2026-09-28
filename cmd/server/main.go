@@ -11,8 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prathamkhanduja/dwaarpal/api/proto"
 	"github.com/prathamkhanduja/dwaarpal/internal/config"
+	"github.com/prathamkhanduja/dwaarpal/internal/engine"
 	grpc_handler "github.com/prathamkhanduja/dwaarpal/internal/grpc"
 	"github.com/prathamkhanduja/dwaarpal/internal/handler"
 	"github.com/prathamkhanduja/dwaarpal/internal/limiter"
@@ -64,8 +66,14 @@ func main() {
 		"LEAKY_BUCKET":           limiter.NewLeakyBucketLimiter(rc),
 	}
 
-	// Initialize Handlers
-	h := handler.NewHandler(rc, limiters, cfg.RedisTimeout, cfg.L1CacheSize, cfg.MaxBatchSize, cfg.FailOpen)
+	// Initialize L1 Cache
+	cache, _ := lru.New[string, time.Time](cfg.L1CacheSize)
+
+	// Initialize Centralized Core Engine
+	evaluator := engine.NewEvaluator(rc, limiters, cfg.RedisTimeout, cache, cfg.MaxBatchSize, cfg.FailOpen)
+
+	// Initialize Handlers (Transport Adapters)
+	h := handler.NewHandler(evaluator)
 
 	// Setup Routes
 	mux := http.NewServeMux()
@@ -75,7 +83,7 @@ func main() {
 
 	// Setup gRPC Server
 	grpcServer := grpc.NewServer()
-	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(rc, limiters, cfg.RedisTimeout, h.L1Cache, cfg.MaxBatchSize, cfg.FailOpen))
+	proto.RegisterRateLimiterServiceServer(grpcServer, grpc_handler.NewServer(evaluator))
 	reflection.Register(grpcServer)
 
 	// Start gRPC Server

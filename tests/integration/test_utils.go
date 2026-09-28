@@ -18,11 +18,11 @@ func allowHelper(rc *redis.Client, l limiter.RateLimiter, ctx context.Context, k
 
 	pipe := rc.Rdb.Pipeline()
 	cmd := l.Queue(ctx, pipe, key, limit, window, cost)
-	
+
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return limiter.Result{}, err
 	}
-	
+
 	return l.Parse(cmd)
 }

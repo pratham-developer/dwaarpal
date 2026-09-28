@@ -61,7 +61,7 @@ func TestSlidingWindowCounterLimiter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error on request 6: %v", err)
 	}
-	
+
 	// We just log it instead of failing because time-based integration tests are inherently flaky.
 	t.Logf("Request 6 Allowed: %v, RetryAfter: %v", res.Allowed, res.RetryAfter)
 }

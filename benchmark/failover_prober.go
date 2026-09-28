@@ -21,7 +21,7 @@ func main() {
 	}
 
 	fmt.Printf("Prober started. Target: %s\n", apiURL)
-	
+
 	// Wait for API to be initially up
 	for {
 		req, _ := http.NewRequest("POST", apiURL, bytes.NewBuffer(payload))
@@ -38,7 +38,7 @@ func main() {
 	}
 
 	fmt.Printf("T0 (Baseline): API is healthy. 200 OK.\n")
-	
+
 	// Open a file to append raw results for analysis
 	f, err := os.OpenFile("/tmp/dwaarpal_failover_log.txt", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -52,10 +52,10 @@ func main() {
 	for {
 		req, _ := http.NewRequest("POST", apiURL, bytes.NewBuffer(payload))
 		req.Header.Set("Content-Type", "application/json")
-		
+
 		reqStart := time.Now()
 		resp, err := client.Do(req)
-		
+
 		currentState := 0
 		if err != nil {
 			currentState = 500 // Treat timeout/conn-refused as 500
@@ -65,7 +65,7 @@ func main() {
 		}
 
 		if currentState != lastState {
-			msg := fmt.Sprintf("[%s] State changed from %d -> %d (+%d ms since last change)\n", 
+			msg := fmt.Sprintf("[%s] State changed from %d -> %d (+%d ms since last change)\n",
 				time.Now().Format("15:04:05.000"), lastState, currentState, time.Since(stateChangeTime).Milliseconds())
 			fmt.Print(msg)
 			f.WriteString(msg)

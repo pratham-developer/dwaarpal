@@ -31,7 +31,7 @@ func main() {
 	payload := fmt.Appendf(nil, `[{"key":"%s","algorithm":"FIXED_WINDOW","limit":%d,"window":60}]`, testIP, *limit)
 
 	fmt.Printf("Starting Concurrency Correctness Test: %d Requests, Quota=%d, Target=%s\n", *numRequests, *limit, *apiURL)
-	
+
 	var readyWg sync.WaitGroup
 	readyWg.Add(1)
 
@@ -72,7 +72,7 @@ func main() {
 
 	// FIRE
 	startTime := time.Now()
-	readyWg.Done() 
+	readyWg.Done()
 	wg.Wait()
 	duration := time.Since(startTime)
 
@@ -80,7 +80,7 @@ func main() {
 	fmt.Printf("Time Taken: %v\n", duration)
 	fmt.Printf("Expected Allowed: %d\n", *limit)
 	fmt.Printf("Actual Allowed: %d\n", allowed)
-	fmt.Printf("Expected Denied: %d\n", *numRequests - *limit)
+	fmt.Printf("Expected Denied: %d\n", *numRequests-*limit)
 	fmt.Printf("Actual Denied: %d\n", denied)
 	fmt.Printf("Errors (Timeouts/Fails): %d\n", errors)
 
