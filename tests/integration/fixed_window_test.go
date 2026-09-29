@@ -10,7 +10,7 @@ import (
 )
 
 func TestFixedWindowLimiter(t *testing.T) {
-	rc, err := redis.NewClient("localhost:6379")
+	rc, err := redis.NewClient("localhost:6379", 0)
 	if err != nil {
 		t.Skipf("Skipping integration test, Redis not available at localhost:6379: %v", err)
 	}

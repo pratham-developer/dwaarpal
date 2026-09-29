@@ -10,7 +10,7 @@ import (
 )
 
 func TestSlidingWindowLogLimiter(t *testing.T) {
-	rc, err := redis.NewClient("localhost:6379")
+	rc, err := redis.NewClient("localhost:6379", 0)
 	if err != nil {
 		t.Skipf("Skipping integration test, Redis not available: %v", err)
 	}

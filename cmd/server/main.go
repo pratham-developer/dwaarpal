@@ -33,7 +33,7 @@ func main() {
 	metrics.Init()
 
 	// Initialize Redis client
-	rc, err := redis.NewClient(cfg.RedisAddress)
+	rc, err := redis.NewClient(cfg.RedisAddress, cfg.RedisPoolSize)
 	if err != nil {
 		log.Fatalf("Failed to initialize Redis client: %v", err)
 	}

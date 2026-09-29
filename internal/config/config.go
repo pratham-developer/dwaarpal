@@ -8,13 +8,14 @@ import (
 
 // Config holds the application configuration.
 type Config struct {
-	Port         string
-	GrpcPort     string
-	RedisAddress string
-	RedisTimeout time.Duration
-	L1CacheSize  int
-	MaxBatchSize int
-	FailOpen     bool
+	Port          string
+	GrpcPort      string
+	RedisAddress  string
+	RedisTimeout  time.Duration
+	L1CacheSize   int
+	RedisPoolSize int
+	MaxBatchSize  int
+	FailOpen      bool
 }
 
 // LoadConfig loads configuration from environment variables with sensible defaults.
@@ -45,6 +46,14 @@ func LoadConfig() Config {
 		}
 	}
 
+	poolSizeStr := os.Getenv("REDIS_POOL_SIZE")
+	redisPoolSize := 0 // default falls back to go-redis (10 * runtime.GOMAXPROCS)
+	if poolSizeStr != "" {
+		if parsed, err := strconv.Atoi(poolSizeStr); err == nil && parsed > 0 {
+			redisPoolSize = parsed
+		}
+	}
+
 	batchSizeStr := os.Getenv("MAX_BATCH_SIZE")
 	maxBatchSize := 100 // default 100 keys per request
 	if batchSizeStr != "" {
@@ -61,11 +70,12 @@ func LoadConfig() Config {
 	failOpen := os.Getenv("FAIL_OPEN") == "true"
 
 	return Config{
-		Port:         port,
-		GrpcPort:     grpcPort,
-		RedisAddress: redisAddr,
-		RedisTimeout: time.Duration(timeoutMs) * time.Millisecond,
-		L1CacheSize:  l1CacheSize,
+		Port:          port,
+		GrpcPort:      grpcPort,
+		RedisAddress:  redisAddr,
+		RedisTimeout:  time.Duration(timeoutMs) * time.Millisecond,
+		L1CacheSize:   l1CacheSize,
+		RedisPoolSize: redisPoolSize,
 		MaxBatchSize: maxBatchSize,
 		FailOpen:     failOpen,
 	}

@@ -147,7 +147,10 @@ docker run -d \
   -e GRPC_PORT="50051" \
   -e REDIS_ADDRESS="clustercfg.production-redis.us-east-1.cache.amazonaws.com:6379" \
   -e REDIS_TIMEOUT_MS="50" \
+  -e REDIS_POOL_SIZE="500" \
   -e FAIL_OPEN="false" \
+  -e L1_CACHE_SIZE="100000" \
+  -e MAX_BATCH_SIZE="100" \
   ghcr.io/pratham-developer/dwaarpal:latest
 ```
 
@@ -234,6 +237,7 @@ Dwaarpal is configured strictly through environment variables to align with 12-F
 | `GRPC_PORT` | `50051` | The gRPC Port. |
 | `REDIS_ADDRESS` | `localhost:6379` | Supports standalone (`ip:port`), cluster (`ip1:port1,ip2:port2`), or TLS (`rediss://...`) |
 | `REDIS_TIMEOUT_MS` | `50` | Maximum allowed latency per pipeline before triggering terminal failure. |
+| `REDIS_POOL_SIZE` | `0` (go-redis default) | Number of maximum concurrent connections to Redis. Adjust higher for constrained K8s environments. |
 | `FAIL_OPEN` | `false` | If `true`, allows traffic to bypass the rate limiter during a complete Redis outage (Availability over Quota). If `false`, returns 503 (Protection over Availability). |
 | `L1_CACHE_SIZE` | `100000` | Max items in the local RAM Penalty Box. (~15MB overhead at max capacity). |
 | `MAX_BATCH_SIZE` | `100` | Max number of keys allowed in a single payload. Protects against memory exhaustion. |

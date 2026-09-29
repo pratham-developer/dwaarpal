@@ -17,7 +17,7 @@ type Client struct {
 }
 
 // NewClient initializes and returns a new Redis client.
-func NewClient(addr string) (*Client, error) {
+func NewClient(addr string, poolSize int) (*Client, error) {
 	var rdb redis.UniversalClient
 
 	if strings.HasPrefix(addr, "redis://") || strings.HasPrefix(addr, "rediss://") {
@@ -25,15 +25,20 @@ func NewClient(addr string) (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid redis URL: %w", err)
 		}
+		if poolSize > 0 {
+			opts.PoolSize = poolSize
+		}
 		rdb = redis.NewClient(opts)
 	} else if strings.Contains(addr, ",") {
 		addrs := strings.Split(addr, ",")
 		rdb = redis.NewClusterClient(&redis.ClusterOptions{
-			Addrs: addrs,
+			Addrs:    addrs,
+			PoolSize: poolSize,
 		})
 	} else {
 		rdb = redis.NewClient(&redis.Options{
-			Addr: addr,
+			Addr:     addr,
+			PoolSize: poolSize,
 		})
 	}
 

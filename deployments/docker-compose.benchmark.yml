@@ -8,6 +8,7 @@ services:
     environment:
       - REDIS_ADDRESS=dwaarpal-redis:6379
       - REDIS_TIMEOUT_MS=1000
+      - REDIS_POOL_SIZE=500
       - FAIL_OPEN=false
       - L1_CACHE_SIZE=100000
       - MAX_BATCH_SIZE=100

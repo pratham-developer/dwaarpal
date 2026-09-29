@@ -12,7 +12,10 @@ services:
       - PORT=8080
       - REDIS_ADDRESS=redis-cluster:7010,redis-cluster:7011,redis-cluster:7012,redis-cluster:7013,redis-cluster:7014,redis-cluster:7015
       - REDIS_TIMEOUT_MS=1000
+      - REDIS_POOL_SIZE=500
       - FAIL_OPEN=false
+      - L1_CACHE_SIZE=100000
+      - MAX_BATCH_SIZE=100
     depends_on:
       - redis-cluster
   redis-cluster:
