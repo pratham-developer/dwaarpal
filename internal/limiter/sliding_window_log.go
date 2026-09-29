@@ -2,6 +2,8 @@ package limiter
 
 import (
 	"context"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,13 +14,16 @@ import (
 
 // SlidingWindowLogLimiter implements the RateLimiter interface using a sliding window log algorithm.
 type SlidingWindowLogLimiter struct {
-	rc *redis.Client
+	rc        *redis.Client
+	machineID string
+	counter   atomic.Uint64
 }
 
 // NewSlidingWindowLogLimiter creates a new SlidingWindowLogLimiter.
 func NewSlidingWindowLogLimiter(rc *redis.Client) *SlidingWindowLogLimiter {
 	return &SlidingWindowLogLimiter{
-		rc: rc,
+		rc:        rc,
+		machineID: uuid.New().String(),
 	}
 }
 
@@ -29,7 +34,8 @@ func (l *SlidingWindowLogLimiter) Queue(ctx context.Context, pipe go_redis.Pipel
 		windowMs = 1000 // default to 1s if invalid
 	}
 
-	baseID := uuid.New().String()
+	count := l.counter.Add(1)
+	baseID := l.machineID + "-" + strconv.FormatUint(count, 10)
 
 	return pipe.EvalSha(ctx, scripts.SlidingWindowLogSHA, []string{key}, limit, windowMs, cost, baseID)
 }
