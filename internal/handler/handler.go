@@ -47,9 +47,11 @@ type CheckMultiResponse struct {
 
 // CheckRateLimit handles multi-key rate-limiting decisions via the central engine.
 func (h *Handler) CheckRateLimit(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1024*1024) // 1 MB absolute hard cap
+
 	var reqs []engine.Request
 	if err := json.NewDecoder(r.Body).Decode(&reqs); err != nil {
-		http.Error(w, "Invalid JSON payload, expected an array of descriptors", http.StatusBadRequest)
+		http.Error(w, "Invalid JSON payload, expected an array of descriptors or payload too large", http.StatusBadRequest)
 		return
 	}
 
