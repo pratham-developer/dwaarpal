@@ -133,7 +133,19 @@ func main() {
 
 	// 2. Stop gRPC Server
 	log.Println("Stopping gRPC server...")
-	grpcServer.GracefulStop()
+	grpcStopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(grpcStopped)
+	}()
+
+	select {
+	case <-grpcStopped:
+		log.Println("gRPC server stopped gracefully.")
+	case <-ctx.Done():
+		log.Println("gRPC server shutdown timed out. Forcing hard stop...")
+		grpcServer.Stop()
+	}
 
 	// 3. (Deferred) Redis connection pool will close when main exits
 	log.Println("Dwaarpal shutdown complete.")
